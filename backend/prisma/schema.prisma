@@ -1,0 +1,101 @@
+// Prisma schema — Phase 1
+// Multi-tenant data model: every Connection and downstream row is owned by a User.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String       @id @default(cuid())
+  email            String       @unique
+  passwordHash     String
+  name             String?
+  createdAt        DateTime     @default(now())
+  plan             String       @default("trial") // trial | starter | pro | agency
+  stripeCustomerId String?
+  connections      Connection[]
+  alerts           AlertRule[]
+}
+
+model Connection {
+  id             String         @id @default(cuid())
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform       String // facebook | tiktok | shopify
+  accountId      String // ad account id or shop domain
+  accountName    String?
+  accessToken    String // ENCRYPTED at rest
+  refreshToken   String? // ENCRYPTED at rest
+  tokenExpiresAt DateTime?
+  status         String         @default("active") // active | expired | revoked
+  createdAt      DateTime       @default(now())
+  campaigns      Campaign[]
+  shopifyOrders  ShopifyOrder[]
+
+  @@unique([userId, platform, accountId])
+  @@index([userId])
+}
+
+model Campaign {
+  id           String     @id @default(cuid())
+  connectionId String
+  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  externalId   String // platform's campaign id
+  name         String
+  status       String
+  raw          Json? // full API payload (JSONB)
+  insights     Insight[]
+
+  @@unique([connectionId, externalId])
+  @@index([connectionId])
+}
+
+model Insight {
+  id          String   @id @default(cuid())
+  campaignId  String
+  campaign    Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  date        DateTime
+  spend       Float    @default(0)
+  impressions Int      @default(0)
+  clicks      Int      @default(0)
+  purchases   Int      @default(0)
+  revenue     Float    @default(0)
+  frequency   Float    @default(0)
+  raw         Json?
+
+  @@unique([campaignId, date])
+  @@index([date])
+  @@index([campaignId])
+}
+
+model ShopifyOrder {
+  id           String     @id @default(cuid())
+  connectionId String
+  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  externalId   String
+  totalPrice   Float
+  createdAt    DateTime
+  raw          Json?
+
+  @@unique([connectionId, externalId])
+  @@index([connectionId])
+  @@index([createdAt])
+}
+
+model AlertRule {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metric    String // roas | frequency | budget_pace
+  operator  String // lt | gt
+  threshold Float
+  enabled   Boolean @default(true)
+
+  @@index([userId])
+}
