@@ -32,8 +32,9 @@ app.use("/api/facebook", facebookRoutes);
 app.use("/api/shopify", shopifyRoutes);
 app.use("/api/tiktok", tiktokRoutes);
 app.use("/api/sync", syncRoutes);
-app.use("/api/metrics", metricsRoutes);
-app.use("/api/alerts", alertsRoutes);
+// Prevent browsers from caching metrics/alerts responses so filter changes always hit the DB.
+app.use("/api/metrics", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); }, metricsRoutes);
+app.use("/api/alerts", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); }, alertsRoutes);
 
 // Centralized error handler — must have 4 args for Express to recognize it.
 app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {

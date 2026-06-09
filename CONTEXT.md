@@ -10,18 +10,18 @@ Multi-tenant SaaS dashboard that unifies **Facebook Ads + TikTok Ads + Shopify**
 
 ## Stack (locked-in choices — do not revisit without explicit ask)
 
-| Layer | Choice | Why we deviated from the original plan |
-|---|---|---|
-| Backend | Node 22 + Express 5 + TypeScript | Plan-aligned |
-| ORM / DB | Prisma **6** + Postgres 18 (local) | Plan asked for "latest Prisma"; v7 broke the plan's `datasource.url = env(...)` syntax — downgraded to 6 to keep build-plan code valid |
-| Frontend | Angular **21** + PrimeNG + ApexCharts | Plan asked for Angular 22; PrimeNG hasn't shipped Angular 22 support yet (as of build date). Will upgrade once PrimeNG 22 lands |
-| Auth | bcrypt + JWT (7-day) + AES-256-GCM for tokens at rest | Plan-aligned |
-| State (FE) | Signals (zoneless change detection) | Plan-aligned |
-| Forms | Reactive Forms (`ReactiveFormsModule`) | Plan was vague; chose reactive over signal forms (signal forms still evolving in Angular 21) |
-| Charts | ApexCharts via `ng-apexcharts`, lazy-loaded | Plan-aligned; lazy-loading is an upgrade |
-| Cron | `node-cron` every 30 min + `POST /api/sync/run` for manual | Plan-aligned |
-| Tests | Vitest + supertest | Plan didn't specify; Vitest chosen for speed + TS-native ergonomics |
-| Rate limiting | `express-rate-limit` (10/15min auth, 200/min global) | Plan listed as security TODO; implemented |
+| Layer         | Choice                                                     | Why we deviated from the original plan                                                                                                 |
+| ------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend       | Node 22 + Express 5 + TypeScript                           | Plan-aligned                                                                                                                           |
+| ORM / DB      | Prisma **6** + Postgres 18 (local)                         | Plan asked for "latest Prisma"; v7 broke the plan's `datasource.url = env(...)` syntax — downgraded to 6 to keep build-plan code valid |
+| Frontend      | Angular **21** + PrimeNG + ApexCharts                      | Plan asked for Angular 22; PrimeNG hasn't shipped Angular 22 support yet (as of build date). Will upgrade once PrimeNG 22 lands        |
+| Auth          | bcrypt + JWT (7-day) + AES-256-GCM for tokens at rest      | Plan-aligned                                                                                                                           |
+| State (FE)    | Signals (zoneless change detection)                        | Plan-aligned                                                                                                                           |
+| Forms         | Reactive Forms (`ReactiveFormsModule`)                     | Plan was vague; chose reactive over signal forms (signal forms still evolving in Angular 21)                                           |
+| Charts        | ApexCharts via `ng-apexcharts`, lazy-loaded                | Plan-aligned; lazy-loading is an upgrade                                                                                               |
+| Cron          | `node-cron` every 30 min + `POST /api/sync/run` for manual | Plan-aligned                                                                                                                           |
+| Tests         | Vitest + supertest                                         | Plan didn't specify; Vitest chosen for speed + TS-native ergonomics                                                                    |
+| Rate limiting | `express-rate-limit` (10/15min auth, 200/min global)       | Plan listed as security TODO; implemented                                                                                              |
 
 ## Build status
 
@@ -52,6 +52,7 @@ Multi-tenant SaaS dashboard that unifies **Facebook Ads + TikTok Ads + Shopify**
 Three sets of OAuth credentials. Until they arrive, nothing more can be tested live. Code paths are fully built and waiting.
 
 **Once credentials are pasted**:
+
 1. Restart `npm run dev` in `backend/`
 2. Run the **Golden Path** section of `TEST_PLAN.md` (15 steps, ~10 min)
 3. If everything passes, the next phases are Stripe billing (when user is ready) and production deploy
@@ -61,6 +62,7 @@ See [`CREDENTIALS.md`](./CREDENTIALS.md) for exact paste locations and how to ge
 ## Test user
 
 A test user already exists in the local DB:
+
 - Email: `test@example.com`
 - Password: `supersecret123`
 
@@ -160,5 +162,7 @@ media-dashboard/
 ---
 
 **Last touched:** 2026-06-09 — Phases 0-9 complete, polish pass shipped (rate limiting + 36 unit tests), test plan + credentials guide written. Awaiting OAuth credentials.
+
+claude --resume 3cb142ab-5699-4090-8107-a59cdf1dbd9f
 
 claude --resume 3cb142ab-5699-4090-8107-a59cdf1dbd9f

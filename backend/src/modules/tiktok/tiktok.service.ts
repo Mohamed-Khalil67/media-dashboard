@@ -15,10 +15,12 @@ export interface TikTokCampaign {
   campaign_name: string;
   operation_status: string;
   status?: string;
+  create_time?: string; // "YYYY-MM-DD HH:MM:SS" in advertiser's local timezone
 }
 
 export interface TikTokInsightRow {
   campaign_id: string;
+  stat_time_day?: string; // "YYYY-MM-DD HH:MM:SS" when breakdown by day is requested
   metrics: {
     spend?: string;
     impressions?: string;
@@ -58,8 +60,8 @@ export async function fetchCampaigns(connection: Connection): Promise<TikTokCamp
   return res.data.data?.list ?? [];
 }
 
-/** Fetch yesterday's campaign-level performance. */
-export async function fetchCampaignInsights(connection: Connection, dayRange = 7): Promise<TikTokInsightRow[]> {
+/** Fetch campaign-level performance broken down by day across the lookback range. */
+export async function fetchCampaignInsights(connection: Connection, dayRange = 30): Promise<TikTokInsightRow[]> {
   const token = decrypt(connection.accessToken);
   const end = new Date();
   const start = new Date(end.getTime() - dayRange * 86_400_000);
@@ -70,7 +72,8 @@ export async function fetchCampaignInsights(connection: Connection, dayRange = 7
       advertiser_id: connection.accountId,
       report_type: "BASIC",
       data_level: "AUCTION_CAMPAIGN",
-      dimensions: JSON.stringify(["campaign_id"]),
+      // stat_time_day produces one row per campaign per day.
+      dimensions: JSON.stringify(["campaign_id", "stat_time_day"]),
       metrics: JSON.stringify([
         "spend",
         "impressions",
@@ -87,8 +90,9 @@ export async function fetchCampaignInsights(connection: Connection, dayRange = 7
   if (res.data?.code !== 0) {
     throw new Error(`TikTok report fetch failed: ${res.data?.message}`);
   }
-  return (res.data.data?.list ?? []).map((row: { dimensions: { campaign_id: string }; metrics: TikTokInsightRow["metrics"] }) => ({
+  return (res.data.data?.list ?? []).map((row: { dimensions: { campaign_id: string; stat_time_day?: string }; metrics: TikTokInsightRow["metrics"] }) => ({
     campaign_id: row.dimensions.campaign_id,
+    stat_time_day: row.dimensions.stat_time_day,
     metrics: row.metrics,
   }));
 }

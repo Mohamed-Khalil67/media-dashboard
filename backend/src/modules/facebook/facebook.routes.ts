@@ -3,7 +3,7 @@ import { requireAuth, AuthedRequest } from "../../middleware/auth";
 import { prisma } from "../../db/client";
 import { encrypt } from "../../utils/encryption";
 import { signState, verifyState } from "../../utils/oauthState";
-import { exchangeCodeForToken, listAdAccounts } from "./facebook.service";
+import { exchangeCodeForToken, listAdAccounts, setCampaignStatus } from "./facebook.service";
 
 const router = Router();
 
@@ -72,6 +72,38 @@ router.get("/callback", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("Facebook callback failed:", err);
     res.redirect(`${process.env.FRONTEND_URL}/connections?facebook=error`);
+  }
+});
+
+/** POST /api/facebook/campaigns/:campaignId/status — pause or resume a campaign. */
+router.post("/campaigns/:campaignId/status", requireAuth, async (req: Request, res: Response) => {
+  const userId = (req as AuthedRequest).userId;
+  const campaignDbId = String(req.params.campaignId);
+  const { status } = req.body as { status?: string };
+
+  if (status !== "PAUSED" && status !== "ACTIVE") {
+    return res.status(400).json({ error: "Status must be PAUSED or ACTIVE" });
+  }
+
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: campaignDbId },
+    include: { connection: true },
+  });
+
+  if (!campaign || campaign.connection.userId !== userId) {
+    return res.status(404).json({ error: "Campaign not found" });
+  }
+  if (campaign.connection.platform !== "facebook") {
+    return res.status(400).json({ error: "Only Facebook campaigns can be paused via this endpoint" });
+  }
+
+  try {
+    await setCampaignStatus(campaign.connection, campaign.externalId, status);
+    await prisma.campaign.update({ where: { id: campaignDbId }, data: { status } });
+    res.json({ ok: true, status });
+  } catch (err) {
+    console.error("Failed to set campaign status:", err);
+    res.status(502).json({ error: "Facebook API call failed" });
   }
 });
 

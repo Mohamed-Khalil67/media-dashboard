@@ -7,53 +7,61 @@ import {
   extractPurchases,
 } from "../modules/facebook/facebook.service";
 
-/** Pull campaigns + today's insights for one Facebook connection. */
-export async function syncFacebook(connection: Connection): Promise<{ campaigns: number }> {
+/** Pull campaigns + a daily insight row per day-of-window for one Facebook connection. */
+export async function syncFacebook(connection: Connection): Promise<{ campaigns: number; days: number }> {
   const campaigns = await fetchCampaigns(connection);
-  const today = new Date(new Date().toDateString());
+  let totalDays = 0;
 
   for (const c of campaigns) {
+    const createdAtPlatform = c.created_time ? new Date(c.created_time) : null;
     const campaign = await prisma.campaign.upsert({
       where: { connectionId_externalId: { connectionId: connection.id, externalId: c.id } },
-      update: { name: c.name, status: c.status, raw: c as unknown as object },
+      update: { name: c.name, status: c.status, createdAtPlatform, raw: c as unknown as object },
       create: {
         connectionId: connection.id,
         externalId: c.id,
         name: c.name,
         status: c.status,
+        createdAtPlatform,
         raw: c as unknown as object,
       },
     });
 
-    const insight = c.insights?.data?.[0];
-    if (!insight) continue;
+    // FB returns one entry per day when time_increment=1. Each entry has date_start = "YYYY-MM-DD".
+    const dailyInsights = c.insights?.data ?? [];
+    for (const insight of dailyInsights) {
+      if (!insight.date_start) continue;
+      // Parse "YYYY-MM-DD" → UTC midnight to match how we store/query Insight.date.
+      const date = new Date(`${insight.date_start}T00:00:00.000Z`);
 
-    const spend = Number(insight.spend ?? 0);
-    const impressions = Number(insight.impressions ?? 0);
-    const clicks = Number(insight.clicks ?? 0);
-    const frequency = Number(insight.frequency ?? 0);
-    const purchases = extractPurchases(insight);
-    const roas = extractPurchaseRoas(insight);
-    const revenue = roas > 0 ? roas * spend : 0;
+      const spend = Number(insight.spend ?? 0);
+      const impressions = Number(insight.impressions ?? 0);
+      const clicks = Number(insight.clicks ?? 0);
+      const frequency = Number(insight.frequency ?? 0);
+      const purchases = extractPurchases(insight);
+      const roas = extractPurchaseRoas(insight);
+      const revenue = roas > 0 ? roas * spend : 0;
 
-    await prisma.insight.upsert({
-      where: { campaignId_date: { campaignId: campaign.id, date: today } },
-      update: { spend, impressions, clicks, frequency, purchases, revenue, raw: insight as unknown as object },
-      create: {
-        campaignId: campaign.id,
-        date: today,
-        spend,
-        impressions,
-        clicks,
-        frequency,
-        purchases,
-        revenue,
-        raw: insight as unknown as object,
-      },
-    });
+      await prisma.insight.upsert({
+        where: { campaignId_date: { campaignId: campaign.id, date } },
+        update: { spend, impressions, clicks, frequency, purchases, revenue, raw: insight as unknown as object },
+        create: {
+          campaignId: campaign.id,
+          date,
+          spend,
+          impressions,
+          clicks,
+          frequency,
+          purchases,
+          revenue,
+          raw: insight as unknown as object,
+        },
+      });
+      totalDays++;
+    }
   }
 
-  return { campaigns: campaigns.length };
+  return { campaigns: campaigns.length, days: totalDays };
 }
 
 /** Detect a 401-style auth failure so the orchestrator can mark the connection expired. */

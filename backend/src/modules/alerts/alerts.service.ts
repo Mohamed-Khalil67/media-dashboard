@@ -91,11 +91,16 @@ function describe(metric: Metric, operator: Operator, observed: number, threshol
   }
 }
 
-export async function evaluateAlerts(userId: string): Promise<EvaluatedAlert[]> {
+export async function evaluateAlerts(userId: string, connectionId?: string, platform?: string): Promise<EvaluatedAlert[]> {
+  const connFilter: Record<string, string> = { userId };
+  if (connectionId) connFilter.id = connectionId;
+  if (platform) connFilter.platform = platform;
+  const campaignWhere = { connection: connFilter };
+
   const [rules, campaigns] = await Promise.all([
     prisma.alertRule.findMany({ where: { userId, enabled: true } }),
     prisma.campaign.findMany({
-      where: { connection: { userId } },
+      where: campaignWhere,
       include: { connection: { select: { platform: true } } },
     }),
   ]);

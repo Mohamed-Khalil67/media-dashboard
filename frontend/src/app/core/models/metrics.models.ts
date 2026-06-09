@@ -15,6 +15,12 @@ export interface OverviewKpis {
     roas: number;
     orders: number;
   };
+  previous: {
+    spend: number;
+    revenue: number;
+    roas: number;
+    orders: number;
+  };
 }
 
 export interface TimeseriesPoint {
@@ -30,9 +36,13 @@ export interface TimeseriesResponse {
 
 export interface CampaignAggregate {
   campaignId: string;
+  externalId: string;
   name: string;
+  accountName: string;
+  connectionId: string;
   platform: "facebook" | "tiktok" | "shopify";
   status: string;
+  createdAtPlatform: string | null;
   spend: number;
   impressions: number;
   clicks: number;
@@ -40,8 +50,32 @@ export interface CampaignAggregate {
   revenue: number;
   roas: number;
   frequency: number;
+  cpa: number;
+  dailySpend: number[];
+  dailyRoas: number[];
+  deliveryStalled: boolean;
+  anomalous: boolean;
 }
 
 export interface CampaignsResponse {
   campaigns: CampaignAggregate[];
+}
+
+export interface ShopifyOverview {
+  revenue: number;
+  orders: number;
+  aov: number;
+  conversionRate: number;
+  delta: { revenue: number; orders: number; aov: number };
+  previous: { revenue: number; orders: number; aov: number };
+}
+
+export interface ShopifyDailyPoint {
+  date: string;
+  revenue: number;
+  orders: number;
+}
+
+export interface ShopifyTimeseriesResponse {
+  points: ShopifyDailyPoint[];
 }

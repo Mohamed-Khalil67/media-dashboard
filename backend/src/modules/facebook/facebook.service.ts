@@ -6,6 +6,8 @@ const GRAPH_VERSION = process.env.FB_GRAPH_VERSION ?? "v21.0";
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 export interface FacebookInsight {
+  date_start?: string;   // "YYYY-MM-DD" — present when time_increment=1
+  date_stop?: string;
   spend?: string;
   impressions?: string;
   clicks?: string;
@@ -18,6 +20,7 @@ export interface FacebookCampaign {
   id: string;
   name: string;
   status: string;
+  created_time?: string; // ISO-8601 string from Graph API
   insights?: { data?: FacebookInsight[] };
 }
 
@@ -40,12 +43,17 @@ export async function listAdAccounts(accessToken: string): Promise<Array<{ id: s
   return res.data.data ?? [];
 }
 
+const SYNC_LOOKBACK_DAYS = Number(process.env.FB_SYNC_LOOKBACK_DAYS ?? 30);
+
 export async function fetchCampaigns(connection: Connection): Promise<FacebookCampaign[]> {
   const token = decrypt(connection.accessToken);
+  // time_increment(1) returns one row per day → enables custom date filters.
+  // date_preset(last_30d) caps the lookback so we don't fetch the whole history.
+  const insightFields = `insights.date_preset(last_${SYNC_LOOKBACK_DAYS}d).time_increment(1){date_start,spend,impressions,clicks,actions,purchase_roas,frequency}`;
   const res = await axios.get(`${GRAPH_BASE}/${connection.accountId}/campaigns`, {
     params: {
       access_token: token,
-      fields: "id,name,status,insights.date_preset(last_7d){spend,impressions,clicks,actions,purchase_roas,frequency}",
+      fields: `id,name,status,created_time,${insightFields}`,
       limit: 100,
     },
   });
@@ -63,4 +71,12 @@ export function extractPurchaseRoas(insight: FacebookInsight | undefined): numbe
 export function extractPurchases(insight: FacebookInsight | undefined): number {
   const raw = insight?.actions?.find((a) => a.action_type === "purchase")?.value;
   return raw ? Number(raw) : 0;
+}
+
+/** Pause or resume a Facebook campaign. Requires ads_management scope. */
+export async function setCampaignStatus(connection: Connection, externalCampaignId: string, status: "PAUSED" | "ACTIVE"): Promise<void> {
+  const token = decrypt(connection.accessToken);
+  await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, {
+    params: { access_token: token, status },
+  });
 }

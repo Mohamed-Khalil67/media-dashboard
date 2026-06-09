@@ -93,25 +93,26 @@ interface Draft {
     </section>
   `,
   styles: [`
-    .page-head h1 { margin: 0 0 .25rem; }
-    .muted { color: #64748b; margin: 0 0 1.5rem; }
-    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: .75rem; padding: 1rem 1.25rem; margin-bottom: 1rem; }
-    h3 { margin: 0 0 .75rem; font-size: 1rem; }
+    .page-head h1 { margin: 0 0 .25rem; color: var(--text); }
+    .muted { color: var(--text-muted); margin: 0 0 1.5rem; }
+    .card { background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: .75rem; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    h3 { margin: 0 0 .75rem; font-size: 1rem; color: var(--text); }
     .row { display: flex; gap: .75rem; align-items: end; flex-wrap: wrap; }
-    label { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; color: #475569; }
+    label { display: flex; flex-direction: column; gap: .25rem; font-size: .85rem; color: var(--text-muted); }
     input, select {
-      padding: .45rem .65rem; border: 1px solid #cbd5e1; border-radius: .375rem;
-      font-size: .9rem;
+      padding: .45rem .65rem; border: 1px solid var(--input-bd); border-radius: .375rem;
+      font-size: .9rem; background: var(--card-bg); color: var(--text);
     }
     button { background: #4f46e5; color: #fff; border: 0; padding: .5rem 1rem; border-radius: .375rem; cursor: pointer; font-weight: 500; }
     button:hover:not(:disabled) { background: #4338ca; }
     button:disabled { opacity: .55; cursor: not-allowed; }
     button.danger { background: #fee2e2; color: #b91c1c; padding: .35rem .75rem; font-size: .8rem; }
+    :host-context(html.dark) button.danger { background: #450a0a; color: #fca5a5; }
     table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-    th { text-align: left; background: #f8fafc; color: #475569; font-weight: 500; padding: .5rem .75rem; }
-    td { padding: .55rem .75rem; border-bottom: 1px solid #e2e8f0; }
+    th { text-align: left; background: var(--th-bg); color: var(--text-muted); font-weight: 500; padding: .5rem .75rem; }
+    td { padding: .55rem .75rem; border-bottom: 1px solid var(--card-bd); color: var(--text); }
     td input[type=number] { width: 6rem; }
-    .switch { display: flex; align-items: center; gap: .5rem; cursor: pointer; }
+    .switch { display: flex; align-items: center; gap: .5rem; cursor: pointer; color: var(--text); }
   `],
 })
 export class AlertsComponent implements OnInit {

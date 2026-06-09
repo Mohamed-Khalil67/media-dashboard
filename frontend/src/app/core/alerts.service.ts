@@ -1,5 +1,5 @@
 import { Injectable, inject } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import { firstValueFrom } from "rxjs";
 import { environment } from "../../environments/environment";
 import {
@@ -16,8 +16,12 @@ export class AlertsService {
   private readonly http = inject(HttpClient);
   private readonly api = environment.apiUrl;
 
-  async list(): Promise<EvaluatedAlert[]> {
-    const res = await firstValueFrom(this.http.get<AlertsResponse>(`${this.api}/alerts`));
+  async list(connectionId?: string, platform?: string): Promise<EvaluatedAlert[]> {
+    let p = new HttpParams();
+    if (connectionId) p = p.set("connectionId", connectionId);
+    if (platform) p = p.set("platform", platform);
+    const opts = (p.keys().length > 0) ? { params: p } : {};
+    const res = await firstValueFrom(this.http.get<AlertsResponse>(`${this.api}/alerts`, opts));
     return res.alerts;
   }
 

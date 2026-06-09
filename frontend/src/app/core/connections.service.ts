@@ -1,5 +1,5 @@
 import { Injectable, inject } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import { firstValueFrom } from "rxjs";
 import { environment } from "../../environments/environment";
 import {
@@ -8,6 +8,19 @@ import {
   ConnectUrlResponse,
   Platform,
 } from "./models/connection.models";
+
+export interface SyncRunResult {
+  connectionId: string;
+  platform: string;
+  ok: boolean;
+  details?: { campaigns?: number; orders?: number } & Record<string, unknown>;
+  error?: string;
+}
+
+export interface SyncRunResponse {
+  ranAt: string;
+  results: SyncRunResult[];
+}
 
 @Injectable({ providedIn: "root" })
 export class ConnectionsService {
@@ -33,7 +46,10 @@ export class ConnectionsService {
     return res.url;
   }
 
-  async syncNow(): Promise<unknown> {
-    return firstValueFrom(this.http.post(`${this.api}/sync/run`, {}));
+  async syncNow(platform?: Platform): Promise<SyncRunResponse> {
+    const params = platform ? new HttpParams().set("platform", platform) : undefined;
+    return firstValueFrom(
+      this.http.post<SyncRunResponse>(`${this.api}/sync/run`, {}, { params })
+    );
   }
 }

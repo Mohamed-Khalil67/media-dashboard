@@ -43,14 +43,15 @@ model Connection {
 }
 
 model Campaign {
-  id           String     @id @default(cuid())
-  connectionId String
-  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  externalId   String // platform's campaign id
-  name         String
-  status       String
-  raw          Json? // full API payload (JSONB)
-  insights     Insight[]
+  id                 String     @id @default(cuid())
+  connectionId       String
+  connection         Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  externalId         String // platform's campaign id
+  name               String
+  status             String
+  createdAtPlatform  DateTime? // when the campaign was created on the ad platform itself
+  raw                Json? // full API payload (JSONB)
+  insights           Insight[]
 
   @@unique([connectionId, externalId])
   @@index([connectionId])

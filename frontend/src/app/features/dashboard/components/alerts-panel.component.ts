@@ -28,10 +28,10 @@ import { EvaluatedAlert } from "../../../core/models/alerts.models";
     </article>
   `,
   styles: [`
-    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: .75rem; padding: 1rem 1.25rem; }
+    .card { background: var(--card-bg, #fff); border: 1px solid var(--card-bd, #e2e8f0); border-radius: .75rem; padding: 1rem 1.25rem; }
     header { display: flex; align-items: baseline; justify-content: space-between; }
-    h3 { margin: 0 0 .5rem; font-size: 1rem; }
-    .muted { color: #64748b; margin: 0; font-size: .9rem; }
+    h3 { margin: 0 0 .5rem; font-size: 1rem; color: var(--text, #0f172a); }
+    .muted { color: var(--text-muted, #64748b); margin: 0; font-size: .9rem; }
     .muted-link { color: #4f46e5; font-size: .8rem; text-decoration: none; }
     .muted-link:hover { text-decoration: underline; }
     ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .5rem; }

@@ -17,9 +17,16 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () => import("./shared/app-shell.component").then((m) => m.AppShellComponent),
     children: [
+      { path: "dashboard", redirectTo: "dashboard/facebook", pathMatch: "full" },
       {
-        path: "dashboard",
-        loadComponent: () => import("./features/dashboard/dashboard.component").then((m) => m.DashboardComponent),
+        path: "dashboard/shopify",
+        loadComponent: () =>
+          import("./features/dashboard/shopify-dashboard.component").then((m) => m.ShopifyDashboardComponent),
+      },
+      {
+        path: "dashboard/:platform",
+        loadComponent: () =>
+          import("./features/dashboard/dashboard.component").then((m) => m.DashboardComponent),
       },
       {
         path: "connections",
@@ -29,7 +36,7 @@ export const routes: Routes = [
         path: "alerts",
         loadComponent: () => import("./features/alerts/alerts.component").then((m) => m.AlertsComponent),
       },
-      { path: "", redirectTo: "dashboard", pathMatch: "full" },
+      { path: "", redirectTo: "dashboard/facebook", pathMatch: "full" },
     ],
   },
   { path: "**", redirectTo: "" },

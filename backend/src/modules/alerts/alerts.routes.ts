@@ -13,7 +13,10 @@ router.use(requireAuth);
 /** Evaluated alerts derived from the user's rules and latest campaign data. */
 router.get("/", async (req: Request, res: Response) => {
   const userId = (req as AuthedRequest).userId;
-  const alerts = await evaluateAlerts(userId);
+  const connectionId = req.query.connectionId ? String(req.query.connectionId) : undefined;
+  const platformRaw = typeof req.query.platform === "string" ? req.query.platform : undefined;
+  const platform = platformRaw && ["facebook", "tiktok"].includes(platformRaw) ? platformRaw : undefined;
+  const alerts = await evaluateAlerts(userId, connectionId, platform);
   res.json({ alerts });
 });
 

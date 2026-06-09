@@ -10,12 +10,15 @@ const router = Router();
 
 router.use(requireAuth);
 
-/** Trigger sync for all of the calling user's active connections. */
+/** Trigger sync for the calling user's active connections, optionally filtered by platform. */
 router.post("/run", async (req: Request, res: Response) => {
   const userId = (req as AuthedRequest).userId;
-  const connections = await prisma.connection.findMany({
-    where: { userId, status: "active" },
-  });
+  const platformRaw = typeof req.query.platform === "string" ? req.query.platform : undefined;
+  const platform = platformRaw && ["facebook", "tiktok", "shopify"].includes(platformRaw) ? platformRaw : undefined;
+
+  const where: Record<string, unknown> = { userId, status: "active" };
+  if (platform) where.platform = platform;
+  const connections = await prisma.connection.findMany({ where });
 
   const results = [];
   for (const conn of connections) {
