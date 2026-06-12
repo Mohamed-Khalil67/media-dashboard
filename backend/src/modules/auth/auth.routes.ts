@@ -1,65 +1,45 @@
 import { Router, Request, Response } from "express";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { prisma } from "../../db/client";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
-import { seedDefaultRules } from "../alerts/alerts.service";
 
 const router = Router();
 
-const TOKEN_EXPIRY = "7d";
-const BCRYPT_COST = 12;
-
-function signToken(userId: string): string {
-  return jwt.sign({ userId }, process.env.JWT_SECRET!, { expiresIn: TOKEN_EXPIRY });
-}
-
-router.post("/register", async (req: Request, res: Response) => {
-  const { email, password, name } = req.body ?? {};
-  if (typeof email !== "string" || typeof password !== "string" || password.length < 8) {
-    return res.status(400).json({ error: "email and password (min 8 chars) are required" });
-  }
-
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return res.status(409).json({ error: "Email already in use" });
-
-  const passwordHash = await bcrypt.hash(password, BCRYPT_COST);
-  const user = await prisma.user.create({
-    data: { email, passwordHash, name: typeof name === "string" ? name : null },
-  });
-  await seedDefaultRules(user.id);
-
-  res.status(201).json({
-    token: signToken(user.id),
-    user: { id: user.id, email: user.email, name: user.name, plan: user.plan },
-  });
-});
-
-router.post("/login", async (req: Request, res: Response) => {
-  const { email, password } = req.body ?? {};
-  if (typeof email !== "string" || typeof password !== "string") {
-    return res.status(400).json({ error: "email and password are required" });
-  }
-
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-    return res.status(401).json({ error: "Invalid credentials" });
-  }
-
-  res.json({
-    token: signToken(user.id),
-    user: { id: user.id, email: user.email, name: user.name, plan: user.plan },
-  });
-});
-
+/**
+ * Returns the local profile + active workspace for the currently signed-in Firebase user.
+ * Auto-provisioning + linking is handled inside the auth middleware.
+ */
 router.get("/me", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const authed = req as AuthedRequest;
   const user = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { id: authed.userId },
     select: { id: true, email: true, name: true, plan: true, createdAt: true },
   });
   if (!user) return res.status(404).json({ error: "User not found" });
-  res.json({ user });
+  const ws = await prisma.workspace.findUnique({
+    where: { id: authed.workspaceId },
+    select: { id: true, name: true },
+  });
+  res.json({ user, workspace: ws ? { ...ws, role: authed.role } : null });
+});
+
+/**
+ * Unauthenticated check used by the login form: given an email, tell the client whether
+ * this user predates the Firebase migration and needs a one-time password reset.
+ *
+ * Privacy note: this leaks email existence. We accept that tradeoff since the alternative
+ * (a confused user with no idea why "wrong password" keeps firing) is worse.
+ */
+router.get("/check-migration", async (req: Request, res: Response) => {
+  const email = typeof req.query.email === "string" ? req.query.email.toLowerCase().trim() : "";
+  if (!email) return res.json({ pendingMigration: false, exists: false });
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { pendingMigration: true },
+  });
+  res.json({
+    exists: !!user,
+    pendingMigration: !!user?.pendingMigration,
+  });
 });
 
 export default router;

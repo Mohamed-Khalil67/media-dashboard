@@ -4,6 +4,7 @@ import { prisma } from "../../db/client";
 import { encrypt } from "../../utils/encryption";
 import { signState, verifyState } from "../../utils/oauthState";
 import { exchangeCodeForToken, listAdAccounts, setCampaignStatus } from "./facebook.service";
+import { logger } from "../../lib/logger";
 
 const router = Router();
 
@@ -12,13 +13,13 @@ const SCOPES = "ads_read,ads_management";
 
 /** Step 1: return the Facebook OAuth dialog URL for the authenticated user to visit. */
 router.get("/connect", requireAuth, (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { userId, workspaceId } = req as AuthedRequest;
   const params = new URLSearchParams({
     client_id: process.env.FB_APP_ID ?? "",
     redirect_uri: process.env.FB_REDIRECT_URI ?? "",
     scope: SCOPES,
     response_type: "code",
-    state: signState({ userId, provider: "facebook" }),
+    state: signState({ userId, workspaceId, provider: "facebook" }),
   });
   res.json({ url: `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params.toString()}` });
 });
@@ -35,10 +36,12 @@ router.get("/callback", async (req: Request, res: Response) => {
   }
 
   let userId: string;
+  let workspaceId: string;
   try {
     const decoded = verifyState(state);
     if (decoded.provider !== "facebook") throw new Error("provider mismatch");
     userId = decoded.userId;
+    workspaceId = decoded.workspaceId;
   } catch {
     return res.status(400).json({ error: "Invalid or expired state" });
   }
@@ -57,9 +60,10 @@ router.get("/callback", async (req: Request, res: Response) => {
         where: {
           userId_platform_accountId: { userId, platform: "facebook", accountId: account.id },
         },
-        update: { accessToken: encrypted, accountName: account.name, status: "active" },
+        update: { accessToken: encrypted, accountName: account.name, status: "active", workspaceId },
         create: {
           userId,
+          workspaceId,
           platform: "facebook",
           accountId: account.id,
           accountName: account.name,
@@ -70,14 +74,14 @@ router.get("/callback", async (req: Request, res: Response) => {
 
     res.redirect(`${process.env.FRONTEND_URL}/connections?facebook=connected&count=${accounts.length}`);
   } catch (err) {
-    console.error("Facebook callback failed:", err);
+    logger.error({ err }, "facebook callback failed");
     res.redirect(`${process.env.FRONTEND_URL}/connections?facebook=error`);
   }
 });
 
 /** POST /api/facebook/campaigns/:campaignId/status — pause or resume a campaign. */
 router.post("/campaigns/:campaignId/status", requireAuth, async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { workspaceId } = req as AuthedRequest;
   const campaignDbId = String(req.params.campaignId);
   const { status } = req.body as { status?: string };
 
@@ -90,7 +94,7 @@ router.post("/campaigns/:campaignId/status", requireAuth, async (req: Request, r
     include: { connection: true },
   });
 
-  if (!campaign || campaign.connection.userId !== userId) {
+  if (!campaign || campaign.connection.workspaceId !== workspaceId) {
     return res.status(404).json({ error: "Campaign not found" });
   }
   if (campaign.connection.platform !== "facebook") {
@@ -102,7 +106,7 @@ router.post("/campaigns/:campaignId/status", requireAuth, async (req: Request, r
     await prisma.campaign.update({ where: { id: campaignDbId }, data: { status } });
     res.json({ ok: true, status });
   } catch (err) {
-    console.error("Failed to set campaign status:", err);
+    logger.error({ err, campaignId: campaignDbId }, "failed to set campaign status");
     res.status(502).json({ error: "Facebook API call failed" });
   }
 });

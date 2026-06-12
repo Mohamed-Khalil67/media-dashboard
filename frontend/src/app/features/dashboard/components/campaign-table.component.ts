@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input, output, si
 import { CurrencyPipe, DatePipe, DecimalPipe } from "@angular/common";
 import { CampaignAggregate } from "../../../core/models/metrics.models";
 import { DashboardService } from "../../../core/dashboard.service";
-import { ToastService } from "../../../core/toast.service";
+import { StatusBarService } from "../../../core/status-bar.service";
 import { DropdownComponent } from "../../../shared/dropdown.component";
 
 type SortKey = "name" | "accountName" | "platform" | "createdAtPlatform" | "spend" | "revenue" | "purchases" | "roas" | "cpa" | "frequency";
@@ -216,7 +216,7 @@ const VIEWS_KEY = "campaign-views.v1";
 })
 export class CampaignTableComponent {
   private readonly dash = inject(DashboardService);
-  private readonly toast = inject(ToastService);
+  private readonly status = inject(StatusBarService);
 
   readonly campaigns = input.required<CampaignAggregate[]>();
   readonly changed = output<void>();
@@ -288,10 +288,10 @@ export class CampaignTableComponent {
     this.busy.set(c.campaignId);
     try {
       await this.dash.setCampaignStatus(c.campaignId, status);
-      this.toast.success(`Campaign ${status === "PAUSED" ? "paused" : "resumed"}`);
+      this.status.success(`Campaign ${status === "PAUSED" ? "paused" : "resumed"}`);
       this.changed.emit();
     } catch {
-      this.toast.error(`Failed to ${status === "PAUSED" ? "pause" : "resume"} campaign`);
+      this.status.error(`Failed to ${status === "PAUSED" ? "pause" : "resume"} campaign`);
     } finally {
       this.busy.set(null);
     }

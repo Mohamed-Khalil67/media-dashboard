@@ -25,7 +25,7 @@ export interface FacebookCampaign {
 }
 
 export async function exchangeCodeForToken(code: string): Promise<string> {
-  const res = await axios.get(`${GRAPH_BASE}/oauth/access_token`, {
+  const short = await axios.get(`${GRAPH_BASE}/oauth/access_token`, {
     params: {
       client_id: process.env.FB_APP_ID,
       client_secret: process.env.FB_APP_SECRET,
@@ -33,7 +33,16 @@ export async function exchangeCodeForToken(code: string): Promise<string> {
       code,
     },
   });
-  return res.data.access_token as string;
+  // Swap the ~2-hour token for a ~60-day long-lived one so background sync keeps working.
+  const long = await axios.get(`${GRAPH_BASE}/oauth/access_token`, {
+    params: {
+      grant_type: "fb_exchange_token",
+      client_id: process.env.FB_APP_ID,
+      client_secret: process.env.FB_APP_SECRET,
+      fb_exchange_token: short.data.access_token,
+    },
+  });
+  return long.data.access_token as string;
 }
 
 export async function listAdAccounts(accessToken: string): Promise<Array<{ id: string; name: string }>> {

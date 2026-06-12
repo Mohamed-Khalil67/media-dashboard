@@ -5,7 +5,7 @@ import { AuthService } from "../../core/auth.service";
 import { ConnectionsService } from "../../core/connections.service";
 import { DashboardService, AdPlatform } from "../../core/dashboard.service";
 import { AlertsService } from "../../core/alerts.service";
-import { ToastService } from "../../core/toast.service";
+import { StatusBarService } from "../../core/status-bar.service";
 import {
   CampaignAggregate,
   OverviewKpis,
@@ -153,10 +153,23 @@ const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
       </div>
     </header>
 
+    @if (loadError(); as msg) {
+      <div class="health-banner health-banner--err">
+        <strong>{{ msg }}</strong>
+        <a (click)="reload()" style="cursor: pointer">Retry →</a>
+      </div>
+    }
     @if (expiredConnections().length > 0) {
       <div class="health-banner">
         <strong>{{ expiredConnections().length }} account{{ expiredConnections().length > 1 ? 's' : '' }} expired.</strong>
         Data may be out of date. <a routerLink="/connections">Reconnect →</a>
+      </div>
+    }
+    @if (failedConnections().length > 0) {
+      <div class="health-banner health-banner--err">
+        <strong>{{ failedConnections().length }} account{{ failedConnections().length > 1 ? 's' : '' }} failing to sync.</strong>
+        {{ failedConnections()[0].lastSyncError ?? 'Unknown error' }}
+        <a routerLink="/connections">View details →</a>
       </div>
     }
 
@@ -272,6 +285,10 @@ const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
     :host-context(html.dark) .health-banner { background: #78350f; border-color: #f59e0b; color: #fcd34d; }
     :host-context(html.dark) .health-banner a { color: #fbbf24; }
     .health-banner a:hover { text-decoration: underline; }
+    .health-banner--err { background: #fee2e2; border-color: #f87171; color: #991b1b; }
+    .health-banner--err a { color: #b91c1c; }
+    :host-context(html.dark) .health-banner--err { background: #7f1d1d; border-color: #b91c1c; color: #fca5a5; }
+    :host-context(html.dark) .health-banner--err a { color: #fca5a5; }
 
     .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1rem; margin-bottom: 1rem; }
     @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
@@ -288,10 +305,17 @@ const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
     .top .rank { width: 1.5rem; height: 1.5rem; border-radius: 999px; background: var(--ghost-bg); color: var(--accent); text-align: center; line-height: 1.5rem; font-size: .75rem; font-weight: 600; }
     .top .t-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .top .t-roas { color: #16a34a; font-weight: 500; font-variant-numeric: tabular-nums; }
-    .row { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .row { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem; align-items: stretch; }
     @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
-    .col--wide { min-width: 0; }
+    .col--wide { min-width: 0; display: flex; flex-direction: column; min-height: 28rem; }
+    .col--wide > app-roas-chart { flex: 1 1 0; min-height: 0; }
+    @media (max-width: 900px) { .col--wide { min-height: 22rem; } }
     .col--stack { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+    .col--stack > app-funnel { flex: 0 0 auto; }
+    .col--stack > app-alerts-panel { flex: 1 1 0; min-height: 18rem; }
+    @media (max-width: 900px) {
+      .col--stack > app-alerts-panel { flex: 0 0 auto; max-height: 26rem; }
+    }
     .full { margin-bottom: 1rem; }
     .empty { background: var(--card-bg); border: 1px dashed var(--input-bd); border-radius: .75rem; padding: 3rem 2rem; text-align: center; color: var(--text-muted); }
     .empty h2 { margin-top: 0; color: var(--text); }
@@ -306,7 +330,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly api = inject(DashboardService);
   private readonly conns = inject(ConnectionsService);
   private readonly alertsApi = inject(AlertsService);
-  private readonly toast = inject(ToastService);
+  private readonly status = inject(StatusBarService);
+  readonly loadError = signal<string | null>(null);
 
   /** Bound from the route param /dashboard/:platform — "facebook" or "tiktok". */
   readonly platform = input<AdPlatform>("facebook");
@@ -345,6 +370,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
     if (!q) return this.fbConnections();
     return this.fbConnections().filter((c) => (c.accountName ?? c.accountId).toLowerCase().includes(q));
   });
+
+  readonly failedConnections = computed(() =>
+    this.connections().filter((c) => c.lastSyncOk === false && c.status !== "expired")
+  );
 
   readonly expiredConnections = computed(() =>
     this.connections().filter((c) => c.status === "expired")
@@ -474,6 +503,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     // Show skeleton only on the very first load; subsequent reloads just toggle the "Refreshing" pill.
     if (this.lastUpdated() === null) this.loading.set(true);
     this.refreshing.set(true);
+    this.loadError.set(null);
     try {
       const r = this.range();
       const connId = this.selectedConn() ?? undefined;
@@ -492,7 +522,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.lastUpdated.set(new Date());
       this.nowTick.set(Date.now());
     } catch {
-      this.toast.error("Could not load dashboard data");
+      this.loadError.set("Could not load dashboard data. Backend may be unreachable.");
     } finally {
       this.loading.set(false);
       this.refreshing.set(false);
@@ -502,7 +532,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   async syncNow(): Promise<void> {
     this.syncing.set(true);
     const platform = this.platform();
-    this.toast.info(`Syncing ${platform === "tiktok" ? "TikTok" : "Facebook"}…`);
+    this.status.info(`Syncing ${platform === "tiktok" ? "TikTok" : "Facebook"}…`);
     try {
       const res = await this.conns.syncNow(platform);
       const okResults = res.results.filter((r) => r.ok);
@@ -510,18 +540,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
       const campaigns = okResults.reduce((sum, r) => sum + (Number(r.details?.campaigns) || 0), 0);
 
       if (okResults.length === 0 && failResults.length === 0) {
-        this.toast.info(`No active ${platform} connections to sync. Connect one first.`);
+        this.status.info(`No active ${platform} connections to sync. Connect one first.`);
       } else if (failResults.length === 0) {
-        this.toast.success(`✓ Synced ${campaigns} campaigns across ${okResults.length} ${okResults.length === 1 ? "account" : "accounts"}`);
+        this.status.success(`Synced ${campaigns} campaigns across ${okResults.length} ${okResults.length === 1 ? "account" : "accounts"}`);
       } else if (okResults.length === 0) {
-        this.toast.error(`Sync failed for all ${failResults.length} ${failResults.length === 1 ? "account" : "accounts"}. Check Connections.`);
+        this.status.error(`Sync failed for all ${failResults.length} ${failResults.length === 1 ? "account" : "accounts"}. Check Connections.`);
       } else {
-        this.toast.error(`Partial sync: ${okResults.length} ok, ${failResults.length} failed (${campaigns} campaigns). Check Connections for expired accounts.`);
+        this.status.error(`Partial sync: ${okResults.length} ok, ${failResults.length} failed (${campaigns} campaigns). Check Connections.`);
       }
 
       await Promise.all([this.loadConnections(), this.reload()]);
     } catch {
-      this.toast.error("Sync request failed — backend may be down");
+      this.status.error("Sync request failed — backend may be down");
     } finally {
       this.syncing.set(false);
     }

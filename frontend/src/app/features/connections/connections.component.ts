@@ -2,8 +2,9 @@ import { Component, OnInit, computed, inject, signal } from "@angular/core";
 import { ActivatedRoute } from "@angular/router";
 import { SlicePipe } from "@angular/common";
 import { ConnectionsService } from "../../core/connections.service";
-import { ToastService } from "../../core/toast.service";
+import { StatusBarService } from "../../core/status-bar.service";
 import { Connection, Platform } from "../../core/models/connection.models";
+import { SyncHistoryComponent } from "./sync-history.component";
 
 interface PlatformInfo {
   key: Platform;
@@ -15,12 +16,19 @@ interface PlatformInfo {
 
 @Component({
   selector: "app-connections",
-  imports: [SlicePipe],
+  imports: [SlicePipe, SyncHistoryComponent],
   template: `
     <header class="page-head">
       <h1>Connections</h1>
       <p class="muted">Hook up your ad platforms and your Shopify store. Data syncs every 30 minutes.</p>
     </header>
+
+    @if (loadError(); as msg) {
+      <div class="load-pill" role="alert">
+        <span class="dot"></span><span>{{ msg }}</span>
+        <button class="pill-retry" (click)="reload()">Retry</button>
+      </div>
+    }
 
     <section class="connect-grid">
       @for (p of platforms; track p.key) {
@@ -39,9 +47,9 @@ interface PlatformInfo {
             </div>
 
             @if (countFor(p.key) > 0) {
-              <div class="status" [class.warn]="expiredFor(p.key) > 0">
+              <div class="status" [class.warn]="expiredFor(p.key) > 0 || failedFor(p.key) > 0">
                 <span class="pulse"></span>
-                <span>{{ expiredFor(p.key) > 0 ? 'Attention' : 'Active' }}</span>
+                <span>{{ expiredFor(p.key) > 0 ? 'Attention' : (failedFor(p.key) > 0 ? 'Sync failing' : 'Active') }}</span>
               </div>
             } @else {
               <div class="status status--idle"><span>Not connected</span></div>
@@ -124,7 +132,7 @@ interface PlatformInfo {
         } @else {
           <div class="conn-rows">
             @for (c of filtered(); track c.id) {
-              <div class="conn-row">
+              <div class="conn-row" [class.row-failed]="c.lastSyncOk === false">
                 <div class="conn-left">
                   <div class="avatar" [style.--brand]="brandFor(c.platform)" [class.expired]="c.status === 'expired'">
                     {{ initials(c) }}
@@ -134,17 +142,34 @@ interface PlatformInfo {
                     <div class="acct-sub">
                       <span class="badge badge--{{ c.platform }}">{{ c.platform }}</span>
                       <span class="dot">·</span>
-                      <span class="muted-sm">Connected {{ formatDate(c.createdAt) }}</span>
+                      <span class="muted-sm">{{ formatSync(c) }}</span>
                     </div>
+                    @if (c.lastSyncOk === false && c.lastSyncError) {
+                      <div class="sync-err" [title]="c.lastSyncError">
+                        ⚠ {{ c.lastSyncError }}
+                      </div>
+                    }
                   </div>
                 </div>
                 <div class="conn-right">
                   <span class="status-tag status--{{ c.status }}">
                     <span class="dot-sm"></span> {{ c.status }}
                   </span>
+                  @if (c.lastSyncOk === false) {
+                    <span class="status-tag status--failed"><span class="dot-sm"></span> sync failed</span>
+                  }
+                  @if (c.status === 'expired' && c.platform !== 'shopify') {
+                    <button class="primary primary-sm" (click)="reconnect(c)">Reconnect</button>
+                  }
+                  <button class="ghost" (click)="toggleHistory(c.id)">
+                    {{ expandedId() === c.id ? 'Hide history' : 'Sync history' }}
+                  </button>
                   <button class="danger" (click)="disconnect(c)">Disconnect</button>
                 </div>
               </div>
+              @if (expandedId() === c.id) {
+                <app-sync-history [connectionId]="c.id" />
+              }
             }
           </div>
         }
@@ -242,6 +267,8 @@ interface PlatformInfo {
     }
     button.primary:hover:not(:disabled) { background: #4338ca; }
     button.primary:disabled { opacity: .55; cursor: not-allowed; }
+    button.primary-sm { flex: 0 0 auto; min-width: 0; padding: .3rem .7rem; font-size: .75rem; background: #b45309; }
+    button.primary-sm:hover:not(:disabled) { background: #92400e; }
     button.ghost {
       background: transparent; color: var(--text-muted); border: 1px solid var(--card-bd);
       padding: .5rem .9rem; border-radius: .5rem; cursor: pointer; font-size: .85rem;
@@ -302,6 +329,21 @@ interface PlatformInfo {
     .status--active  { background: #dcfce7; color: #166534; }
     .status--expired { background: #fef3c7; color: #92400e; }
     .status--revoked { background: #fee2e2; color: #991b1b; }
+    .status--failed  { background: #fee2e2; color: #991b1b; }
+    :host-context(html.dark) .status--failed { background: #7f1d1d; color: #fca5a5; }
+    .conn-row.row-failed { border-color: #fca5a5; background: color-mix(in srgb, #fee2e2 30%, var(--card-bg)); }
+    :host-context(html.dark) .conn-row.row-failed { background: color-mix(in srgb, #7f1d1d 30%, var(--card-bg)); border-color: #b91c1c; }
+    .sync-err { margin-top: .3rem; color: #b91c1c; font-size: .72rem; max-width: 38rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    :host-context(html.dark) .sync-err { color: #fca5a5; }
+    .load-pill {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .45rem .85rem; border-radius: 999px;
+      font-size: .82rem; font-weight: 500; margin-bottom: 1rem;
+      background: #fee2e2; color: #b91c1c;
+    }
+    :host-context(html.dark) .load-pill { background: #7f1d1d; color: #fca5a5; }
+    .load-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .pill-retry { background: transparent; color: currentColor; padding: 0 .25rem; font-size: .78rem; text-decoration: underline; border: 0; cursor: pointer; }
     :host-context(html.dark) .status--active  { background: #14532d; color: #86efac; }
     :host-context(html.dark) .status--expired { background: #78350f; color: #fcd34d; }
     :host-context(html.dark) .status--revoked { background: #7f1d1d; color: #fca5a5; }
@@ -309,8 +351,15 @@ interface PlatformInfo {
 })
 export class ConnectionsComponent implements OnInit {
   private readonly api = inject(ConnectionsService);
-  private readonly toast = inject(ToastService);
+  private readonly status = inject(StatusBarService);
   private readonly route = inject(ActivatedRoute);
+
+  readonly loadError = signal<string | null>(null);
+  readonly expandedId = signal<string | null>(null);
+
+  toggleHistory(id: string): void {
+    this.expandedId.set(this.expandedId() === id ? null : id);
+  }
 
   readonly platforms: PlatformInfo[] = [
     { key: "facebook", label: "Facebook Ads", icon: "📘", blurb: "Campaigns, spend, ROAS, frequency.",     brand: "#1877F2" },
@@ -345,7 +394,7 @@ export class ConnectionsComponent implements OnInit {
     const p = this.selectedPlatform();
     if (!p) return;
     if (p === "shopify") {
-      this.toast.info("Enter your shop domain in the Shopify card above.");
+      this.status.info("Enter your shop domain in the Shopify card above.");
       return;
     }
     this.connect(p);
@@ -366,6 +415,15 @@ export class ConnectionsComponent implements OnInit {
 
   expiredFor(platform: Platform): number {
     return this.connections().filter((c) => c.platform === platform && c.status === "expired").length;
+  }
+
+  failedFor(platform: Platform): number {
+    return this.connections().filter((c) => c.platform === platform && c.lastSyncOk === false).length;
+  }
+
+  formatSync(c: Connection): string {
+    if (!c.lastSyncAt) return "Never synced";
+    return `Last sync ${this.formatDate(c.lastSyncAt)}`;
   }
 
   accountsFor(platform: Platform): Connection[] {
@@ -408,10 +466,11 @@ export class ConnectionsComponent implements OnInit {
 
   async reload(): Promise<void> {
     this.loading.set(true);
+    this.loadError.set(null);
     try {
       this.connections.set(await this.api.list());
     } catch {
-      this.toast.error("Could not load connections");
+      this.loadError.set("Could not load connections. Backend may be unreachable.");
     } finally {
       this.loading.set(false);
     }
@@ -422,8 +481,14 @@ export class ConnectionsComponent implements OnInit {
       const url = await this.api.getConnectUrl(platform);
       window.location.href = url;
     } catch {
-      this.toast.error(`Could not start ${platform} connect flow`);
+      this.status.error(`Could not start ${platform} connect flow`);
     }
+  }
+
+  async reconnect(c: Connection): Promise<void> {
+    if (c.platform === "shopify") return;
+    this.status.info(`Reconnecting ${c.accountName ?? c.accountId}…`);
+    await this.connect(c.platform);
   }
 
   async connectShopify(): Promise<void> {
@@ -433,7 +498,7 @@ export class ConnectionsComponent implements OnInit {
       const url = await this.api.getConnectUrl("shopify", { shop });
       window.location.href = url;
     } catch (err: any) {
-      this.toast.error(err?.error?.error ?? "Could not start Shopify connect flow");
+      this.status.error(err?.error?.error ?? "Could not start Shopify connect flow");
     }
   }
 
@@ -441,10 +506,10 @@ export class ConnectionsComponent implements OnInit {
     if (!confirm(`Disconnect ${c.platform} (${c.accountName ?? c.accountId})?`)) return;
     try {
       await this.api.disconnect(c.id);
-      this.toast.success("Disconnected");
+      this.status.success("Disconnected");
       this.reload();
     } catch {
-      this.toast.error("Could not disconnect");
+      this.status.error("Could not disconnect");
     }
   }
 
@@ -453,9 +518,9 @@ export class ConnectionsComponent implements OnInit {
     for (const platform of ["facebook", "tiktok", "shopify"] as const) {
       const v = q.get(platform);
       if (!v) continue;
-      if (v === "connected") this.toast.success(`${platform} connected!`);
-      else if (v === "no_accounts" || v === "no_advertisers") this.toast.error(`No ${platform} accounts found.`);
-      else this.toast.error(`${platform} connection failed.`);
+      if (v === "connected") this.status.success(`${platform} connected!`);
+      else if (v === "no_accounts" || v === "no_advertisers") this.status.error(`No ${platform} accounts found.`);
+      else this.status.error(`${platform} connection failed.`);
     }
   }
 }

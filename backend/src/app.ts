@@ -3,15 +3,21 @@ import cors from "cors";
 import helmet from "helmet";
 import authRoutes from "./modules/auth/auth.routes";
 import facebookRoutes from "./modules/facebook/facebook.routes";
+import facebookWebhookRoutes from "./modules/facebook/facebook.webhooks";
 import shopifyRoutes from "./modules/shopify/shopify.routes";
 import tiktokRoutes from "./modules/tiktok/tiktok.routes";
 import connectionsRoutes from "./modules/connections/connections.routes";
 import syncRoutes from "./modules/sync/sync.routes";
 import metricsRoutes from "./modules/metrics/metrics.routes";
 import alertsRoutes from "./modules/alerts/alerts.routes";
-import { apiLimiter, authLimiter } from "./middleware/rateLimit";
+import workspacesRoutes from "./modules/workspaces/workspaces.routes";
+import { apiLimiter } from "./middleware/rateLimit";
+import { logger } from "./lib/logger";
 
 export const app = express();
+
+// Trust the first proxy (ngrok in dev, load balancer in prod) so rate-limit sees the real client IP.
+app.set("trust proxy", 1);
 
 app.use(helmet());
 app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:4200", credentials: true }));
@@ -26,8 +32,12 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", uptime: process.uptime() });
 });
 
-app.use("/api/auth", process.env.NODE_ENV === "test" ? (_req, _res, next) => next() : authLimiter, authRoutes);
+// Firebase handles brute-force protection upstream, so no /api/auth rate limiter.
+app.use("/api/auth", authRoutes);
 app.use("/api/connections", connectionsRoutes);
+app.use("/api/workspaces", workspacesRoutes);
+// Webhooks must be mounted before facebookRoutes so they're not gated by requireAuth.
+app.use("/api/facebook/webhooks", facebookWebhookRoutes);
 app.use("/api/facebook", facebookRoutes);
 app.use("/api/shopify", shopifyRoutes);
 app.use("/api/tiktok", tiktokRoutes);
@@ -37,7 +47,7 @@ app.use("/api/metrics", (_req, res, next) => { res.setHeader("Cache-Control", "n
 app.use("/api/alerts", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); }, alertsRoutes);
 
 // Centralized error handler — must have 4 args for Express to recognize it.
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err);
+app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  logger.error({ err, path: req.path, method: req.method }, "unhandled request error");
   res.status(500).json({ error: "Internal server error" });
 });

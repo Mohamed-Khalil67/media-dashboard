@@ -7,9 +7,9 @@ const router = Router();
 router.use(requireAuth);
 
 router.get("/", async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { workspaceId } = req as AuthedRequest;
   const connections = await prisma.connection.findMany({
-    where: { userId },
+    where: { workspaceId },
     select: {
       id: true,
       platform: true,
@@ -18,17 +18,45 @@ router.get("/", async (req: Request, res: Response) => {
       status: true,
       createdAt: true,
       tokenExpiresAt: true,
+      lastSyncAt: true,
+      lastSyncOk: true,
+      lastSyncError: true,
     },
     orderBy: { createdAt: "desc" },
   });
   res.json({ connections });
 });
 
-router.delete("/:id", async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+router.get("/:id/syncs", async (req: Request, res: Response) => {
+  const { workspaceId } = req as AuthedRequest;
   const id = String(req.params.id);
 
-  const connection = await prisma.connection.findFirst({ where: { id, userId } });
+  const connection = await prisma.connection.findFirst({ where: { id, workspaceId } });
+  if (!connection) return res.status(404).json({ error: "Connection not found" });
+
+  const limit = Math.min(Number(req.query.limit ?? 50) || 50, 200);
+  const runs = await prisma.syncRun.findMany({
+    where: { connectionId: id },
+    orderBy: { startedAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      startedAt: true,
+      finishedAt: true,
+      ok: true,
+      error: true,
+      campaignCount: true,
+      insightCount: true,
+    },
+  });
+  res.json({ runs });
+});
+
+router.delete("/:id", async (req: Request, res: Response) => {
+  const { workspaceId } = req as AuthedRequest;
+  const id = String(req.params.id);
+
+  const connection = await prisma.connection.findFirst({ where: { id, workspaceId } });
   if (!connection) return res.status(404).json({ error: "Connection not found" });
 
   await prisma.connection.delete({ where: { id } });

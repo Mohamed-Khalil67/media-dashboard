@@ -2,7 +2,7 @@ import { Component, OnInit, inject, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { TitleCasePipe } from "@angular/common";
 import { AlertsService } from "../../core/alerts.service";
-import { ToastService } from "../../core/toast.service";
+import { StatusBarService } from "../../core/status-bar.service";
 import {
   AlertMetric,
   AlertOperator,
@@ -52,9 +52,15 @@ interface Draft {
 
     <section class="card">
       <h3>Your rules</h3>
-      @if (rules().length === 0) {
+      @if (loadError()) {
+        <div class="form-pill form-pill--error" role="alert">
+          <span class="dot"></span><span>{{ loadError() }}</span>
+          <button class="pill-retry" (click)="reload()">Retry</button>
+        </div>
+      }
+      @if (rules().length === 0 && !loadError()) {
         <p class="muted">No rules yet. Add one above.</p>
-      } @else {
+      } @else if (rules().length > 0) {
         <table>
           <thead>
             <tr><th>Metric</th><th>Operator</th><th>Threshold</th><th>Enabled</th><th></th></tr>
@@ -113,14 +119,25 @@ interface Draft {
     td { padding: .55rem .75rem; border-bottom: 1px solid var(--card-bd); color: var(--text); }
     td input[type=number] { width: 6rem; }
     .switch { display: flex; align-items: center; gap: .5rem; cursor: pointer; color: var(--text); }
+
+    .form-pill {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .45rem .85rem; border-radius: 999px;
+      font-size: .82rem; font-weight: 500; margin-bottom: 1rem;
+      background: #fee2e2; color: #b91c1c;
+    }
+    :host-context(html.dark) .form-pill--error { background: #7f1d1d; color: #fca5a5; }
+    .form-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+    .pill-retry { background: transparent; color: currentColor; padding: 0 .25rem; font-size: .78rem; text-decoration: underline; }
   `],
 })
 export class AlertsComponent implements OnInit {
   private readonly api = inject(AlertsService);
-  private readonly toast = inject(ToastService);
+  private readonly status = inject(StatusBarService);
 
   readonly rules = signal<AlertRule[]>([]);
   readonly busy = signal(false);
+  readonly loadError = signal<string | null>(null);
   draft: Draft = { metric: "roas", operator: "lt", threshold: 2 };
 
   ngOnInit(): void {
@@ -131,10 +148,11 @@ export class AlertsComponent implements OnInit {
   asCheck(e: Event): boolean { return (e.target as HTMLInputElement).checked; }
 
   async reload(): Promise<void> {
+    this.loadError.set(null);
     try {
       this.rules.set(await this.api.listRules());
     } catch {
-      this.toast.error("Could not load rules");
+      this.loadError.set("Could not load rules");
     }
   }
 
@@ -144,9 +162,9 @@ export class AlertsComponent implements OnInit {
     try {
       const rule = await this.api.createRule(this.draft.metric, this.draft.operator, this.draft.threshold);
       this.rules.update((list) => [...list, rule]);
-      this.toast.success("Rule added");
+      this.status.success("Rule added");
     } catch {
-      this.toast.error("Could not add rule");
+      this.status.error("Could not add rule");
     } finally {
       this.busy.set(false);
     }
@@ -157,9 +175,9 @@ export class AlertsComponent implements OnInit {
     try {
       const updated = await this.api.updateRule(rule.id, { threshold: value });
       this.rules.update((list) => list.map((r) => (r.id === rule.id ? updated : r)));
-      this.toast.success("Updated");
+      this.status.success("Updated");
     } catch {
-      this.toast.error("Could not update");
+      this.status.error("Could not update");
     }
   }
 
@@ -168,7 +186,7 @@ export class AlertsComponent implements OnInit {
       const updated = await this.api.updateRule(rule.id, { enabled });
       this.rules.update((list) => list.map((r) => (r.id === rule.id ? updated : r)));
     } catch {
-      this.toast.error("Could not toggle");
+      this.status.error("Could not toggle");
     }
   }
 
@@ -177,9 +195,9 @@ export class AlertsComponent implements OnInit {
     try {
       await this.api.deleteRule(rule.id);
       this.rules.update((list) => list.filter((r) => r.id !== rule.id));
-      this.toast.success("Deleted");
+      this.status.success("Deleted");
     } catch {
-      this.toast.error("Could not delete");
+      this.status.error("Could not delete");
     }
   }
 }

@@ -8,6 +8,9 @@ export interface Connection {
   status: "active" | "expired" | "revoked";
   createdAt: string;
   tokenExpiresAt: string | null;
+  lastSyncAt: string | null;
+  lastSyncOk: boolean | null;
+  lastSyncError: string | null;
 }
 
 export interface ConnectionsResponse {

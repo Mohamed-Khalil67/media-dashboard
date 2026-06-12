@@ -8,6 +8,7 @@ import {
   isValidShopDomain,
   verifyCallbackHmac,
 } from "./shopify.service";
+import { logger } from "../../lib/logger";
 
 const router = Router();
 
@@ -15,7 +16,7 @@ const SCOPES = "read_orders,read_products,read_analytics";
 
 /** Step 1: build the install URL for a given shop domain. */
 router.get("/connect", requireAuth, (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { userId, workspaceId } = req as AuthedRequest;
   const shop = String(req.query.shop ?? "");
 
   if (!isValidShopDomain(shop)) {
@@ -26,7 +27,7 @@ router.get("/connect", requireAuth, (req: Request, res: Response) => {
     client_id: process.env.SHOPIFY_API_KEY ?? "",
     scope: SCOPES,
     redirect_uri: process.env.SHOPIFY_REDIRECT_URI ?? "",
-    state: signState({ userId, provider: "shopify" }),
+    state: signState({ userId, workspaceId, provider: "shopify" }),
   });
 
   res.json({ url: `https://${shop}/admin/oauth/authorize?${params.toString()}` });
@@ -48,10 +49,12 @@ router.get("/callback", async (req: Request, res: Response) => {
   }
 
   let userId: string;
+  let workspaceId: string;
   try {
     const decoded = verifyState(state);
     if (decoded.provider !== "shopify") throw new Error("provider mismatch");
     userId = decoded.userId;
+    workspaceId = decoded.workspaceId;
   } catch {
     return res.status(400).json({ error: "Invalid or expired state" });
   }
@@ -63,9 +66,10 @@ router.get("/callback", async (req: Request, res: Response) => {
       where: {
         userId_platform_accountId: { userId, platform: "shopify", accountId: shop },
       },
-      update: { accessToken: encrypt(accessToken), status: "active" },
+      update: { accessToken: encrypt(accessToken), status: "active", workspaceId },
       create: {
         userId,
+        workspaceId,
         platform: "shopify",
         accountId: shop,
         accountName: shop,
@@ -75,7 +79,7 @@ router.get("/callback", async (req: Request, res: Response) => {
 
     res.redirect(`${process.env.FRONTEND_URL}/connections?shopify=connected`);
   } catch (err) {
-    console.error("Shopify callback failed:", err);
+    logger.error({ err }, "shopify callback failed");
     res.redirect(`${process.env.FRONTEND_URL}/connections?shopify=error`);
   }
 });

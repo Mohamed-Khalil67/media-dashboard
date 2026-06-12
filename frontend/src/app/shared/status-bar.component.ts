@@ -1,0 +1,51 @@
+import { Component, inject } from "@angular/core";
+import { StatusBarService } from "../core/status-bar.service";
+
+@Component({
+  selector: "app-status-bar",
+  imports: [],
+  template: `
+    @if (status.current(); as p) {
+      <div class="pill pill--{{ p.kind }}" role="status" aria-live="polite" (click)="status.dismiss()">
+        <span class="dot"></span>
+        <span class="msg">{{ p.message }}</span>
+      </div>
+    }
+  `,
+  styles: [`
+    :host {
+      position: fixed; bottom: 1.2rem; left: 1.2rem; z-index: 9999;
+      pointer-events: none;
+    }
+    .pill {
+      display: inline-flex; align-items: center; gap: .5rem;
+      padding: .45rem .85rem; border-radius: 999px;
+      font-size: .82rem; font-weight: 500;
+      background: var(--card-bg); border: 1px solid var(--card-bd);
+      color: var(--text);
+      box-shadow: 0 6px 18px rgba(15, 23, 42, .08);
+      animation: slide-up .22s ease-out;
+      cursor: pointer; pointer-events: auto;
+      max-width: 26rem;
+    }
+    :host-context(html.dark) .pill { box-shadow: 0 6px 18px rgba(0, 0, 0, .4); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: 0 0 auto; }
+    .msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .pill--success { color: #16a34a; background: color-mix(in srgb, #16a34a 12%, var(--card-bg)); border-color: color-mix(in srgb, #16a34a 35%, var(--card-bd)); }
+    .pill--error   { color: #dc2626; background: color-mix(in srgb, #dc2626 12%, var(--card-bg)); border-color: color-mix(in srgb, #dc2626 35%, var(--card-bd)); }
+    .pill--info    { color: #2563eb; background: color-mix(in srgb, #2563eb 12%, var(--card-bg)); border-color: color-mix(in srgb, #2563eb 35%, var(--card-bd)); }
+
+    :host-context(html.dark) .pill--success { color: #86efac; background: color-mix(in srgb, #14532d 70%, var(--card-bg)); }
+    :host-context(html.dark) .pill--error   { color: #fca5a5; background: color-mix(in srgb, #7f1d1d 70%, var(--card-bg)); }
+    :host-context(html.dark) .pill--info    { color: #93c5fd; background: color-mix(in srgb, #1e3a8a 70%, var(--card-bg)); }
+
+    @keyframes slide-up {
+      from { transform: translateY(.4rem); opacity: 0; }
+      to   { transform: translateY(0); opacity: 1; }
+    }
+  `],
+})
+export class StatusBarComponent {
+  readonly status = inject(StatusBarService);
+}

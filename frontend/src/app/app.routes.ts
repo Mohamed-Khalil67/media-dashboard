@@ -36,6 +36,10 @@ export const routes: Routes = [
         path: "alerts",
         loadComponent: () => import("./features/alerts/alerts.component").then((m) => m.AlertsComponent),
       },
+      {
+        path: "workspaces",
+        loadComponent: () => import("./features/workspaces/workspaces.component").then((m) => m.WorkspacesComponent),
+      },
       { path: "", redirectTo: "dashboard/facebook", pathMatch: "full" },
     ],
   },

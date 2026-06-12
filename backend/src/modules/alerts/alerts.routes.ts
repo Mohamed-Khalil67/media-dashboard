@@ -10,21 +10,21 @@ import {
 const router = Router();
 router.use(requireAuth);
 
-/** Evaluated alerts derived from the user's rules and latest campaign data. */
+/** Evaluated alerts derived from the workspace's rules and latest campaign data. */
 router.get("/", async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { workspaceId } = req as AuthedRequest;
   const connectionId = req.query.connectionId ? String(req.query.connectionId) : undefined;
   const platformRaw = typeof req.query.platform === "string" ? req.query.platform : undefined;
   const platform = platformRaw && ["facebook", "tiktok"].includes(platformRaw) ? platformRaw : undefined;
-  const alerts = await evaluateAlerts(userId, connectionId, platform);
+  const alerts = await evaluateAlerts(workspaceId, connectionId, platform);
   res.json({ alerts });
 });
 
-/** List the user's configured rules. */
+/** List the workspace's configured rules. */
 router.get("/rules", async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { workspaceId } = req as AuthedRequest;
   const rules = await prisma.alertRule.findMany({
-    where: { userId },
+    where: { workspaceId },
     orderBy: { metric: "asc" },
   });
   res.json({ rules });
@@ -32,24 +32,24 @@ router.get("/rules", async (req: Request, res: Response) => {
 
 /** Create a new rule. */
 router.post("/rules", async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { workspaceId, userId } = req as AuthedRequest;
   const { metric, operator, threshold } = req.body ?? {};
   if (!isSupportedMetric(metric) || !isSupportedOperator(operator) || typeof threshold !== "number") {
     return res.status(400).json({ error: "metric, operator, and numeric threshold are required" });
   }
   const rule = await prisma.alertRule.create({
-    data: { userId, metric, operator, threshold, enabled: true },
+    data: { workspaceId, userId, metric, operator, threshold, enabled: true },
   });
   res.status(201).json({ rule });
 });
 
 /** Update threshold or enabled flag. */
 router.patch("/rules/:id", async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { workspaceId } = req as AuthedRequest;
   const id = String(req.params.id);
   const { threshold, enabled, operator } = req.body ?? {};
 
-  const existing = await prisma.alertRule.findFirst({ where: { id, userId } });
+  const existing = await prisma.alertRule.findFirst({ where: { id, workspaceId } });
   if (!existing) return res.status(404).json({ error: "Rule not found" });
 
   if (operator !== undefined && !isSupportedOperator(operator)) {
@@ -68,9 +68,9 @@ router.patch("/rules/:id", async (req: Request, res: Response) => {
 });
 
 router.delete("/rules/:id", async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { workspaceId } = req as AuthedRequest;
   const id = String(req.params.id);
-  const existing = await prisma.alertRule.findFirst({ where: { id, userId } });
+  const existing = await prisma.alertRule.findFirst({ where: { id, workspaceId } });
   if (!existing) return res.status(404).json({ error: "Rule not found" });
   await prisma.alertRule.delete({ where: { id } });
   res.json({ ok: true });

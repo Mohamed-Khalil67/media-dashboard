@@ -2,37 +2,68 @@ import { Router, Request, Response } from "express";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
 import { prisma } from "../../db/client";
 import { runAllConnections } from "../../jobs/sync.job";
-import { syncFacebook, isAuthError } from "../../jobs/sync.facebook";
+import { syncFacebook, isAuthError, describeSyncError } from "../../jobs/sync.facebook";
 import { syncShopify } from "../../jobs/sync.shopify";
 import { syncTiktok } from "../../jobs/sync.tiktok";
+import { logger } from "../../lib/logger";
 
 const router = Router();
 
 router.use(requireAuth);
 
-/** Trigger sync for the calling user's active connections, optionally filtered by platform. */
+/** Trigger sync for the calling workspace's active connections, optionally filtered by platform. */
 router.post("/run", async (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { workspaceId } = req as AuthedRequest;
   const platformRaw = typeof req.query.platform === "string" ? req.query.platform : undefined;
   const platform = platformRaw && ["facebook", "tiktok", "shopify"].includes(platformRaw) ? platformRaw : undefined;
 
-  const where: Record<string, unknown> = { userId, status: "active" };
+  const where: Record<string, unknown> = { workspaceId, status: "active" };
   if (platform) where.platform = platform;
   const connections = await prisma.connection.findMany({ where });
 
   const results = [];
   for (const conn of connections) {
+    const run = await prisma.syncRun.create({ data: { connectionId: conn.id } });
+    const log = logger.child({ connectionId: conn.id, platform: conn.platform, accountId: conn.accountId, manual: true });
     try {
-      let details: object | undefined;
+      let details: { campaigns?: number; days?: number; orders?: number } | undefined;
       if (conn.platform === "facebook") details = await syncFacebook(conn);
       else if (conn.platform === "shopify") details = await syncShopify(conn);
       else if (conn.platform === "tiktok") details = await syncTiktok(conn);
+
+      const finishedAt = new Date();
+      await prisma.syncRun.update({
+        where: { id: run.id },
+        data: {
+          finishedAt, ok: true,
+          campaignCount: details?.campaigns ?? null,
+          insightCount: details?.days ?? null,
+        },
+      });
+      await prisma.connection.update({
+        where: { id: conn.id },
+        data: { lastSyncAt: finishedAt, lastSyncOk: true, lastSyncError: null },
+      });
+      log.info({ details }, "manual sync ok");
       results.push({ connectionId: conn.id, platform: conn.platform, ok: true, details });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      if (isAuthError(err)) {
-        await prisma.connection.update({ where: { id: conn.id }, data: { status: "expired" } });
-      }
+      const message = describeSyncError(err);
+      const expired = isAuthError(err);
+      const finishedAt = new Date();
+      await prisma.syncRun.update({
+        where: { id: run.id },
+        data: { finishedAt, ok: false, error: message },
+      });
+      await prisma.connection.update({
+        where: { id: conn.id },
+        data: {
+          lastSyncAt: finishedAt,
+          lastSyncOk: false,
+          lastSyncError: message,
+          ...(expired ? { status: "expired" } : {}),
+        },
+      });
+      log.error({ err, expired }, "manual sync failed");
       results.push({ connectionId: conn.id, platform: conn.platform, ok: false, error: message });
     }
   }

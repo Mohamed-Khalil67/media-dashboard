@@ -12,21 +12,62 @@ datasource db {
 }
 
 model User {
-  id               String       @id @default(cuid())
-  email            String       @unique
-  passwordHash     String
-  name             String?
-  createdAt        DateTime     @default(now())
-  plan             String       @default("trial") // trial | starter | pro | agency
-  stripeCustomerId String?
-  connections      Connection[]
-  alerts           AlertRule[]
+  id                 String            @id @default(cuid())
+  email              String            @unique
+  firebaseUid        String?           @unique
+  passwordHash       String? // legacy; kept during Firebase migration window
+  pendingMigration   Boolean           @default(false)
+  name               String?
+  createdAt          DateTime          @default(now())
+  plan               String            @default("trial") // trial | starter | pro | agency
+  stripeCustomerId   String?
+  activeWorkspaceId  String?
+  connections        Connection[]
+  alerts             AlertRule[]
+  workspaceMembers   WorkspaceMember[]
+  identities         Identity[]
+}
+
+model Workspace {
+  id          String            @id @default(cuid())
+  name        String
+  createdAt   DateTime          @default(now())
+  members     WorkspaceMember[]
+  connections Connection[]
+  alertRules  AlertRule[]
+}
+
+model WorkspaceMember {
+  id          String    @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        String    @default("member") // "owner" | "member"
+  joinedAt    DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Identity {
+  id         String  @id @default(cuid())
+  userId     String
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider   String // "facebook" | "google"
+  providerId String
+  email      String?
+
+  @@unique([provider, providerId])
+  @@index([userId])
 }
 
 model Connection {
   id             String         @id @default(cuid())
   userId         String
   user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId    String?
+  workspace      Workspace?     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   platform       String // facebook | tiktok | shopify
   accountId      String // ad account id or shop domain
   accountName    String?
@@ -35,11 +76,30 @@ model Connection {
   tokenExpiresAt DateTime?
   status         String         @default("active") // active | expired | revoked
   createdAt      DateTime       @default(now())
+  lastSyncAt     DateTime?
+  lastSyncOk     Boolean?
+  lastSyncError  String?
   campaigns      Campaign[]
   shopifyOrders  ShopifyOrder[]
+  syncRuns       SyncRun[]
 
   @@unique([userId, platform, accountId])
   @@index([userId])
+  @@index([workspaceId])
+}
+
+model SyncRun {
+  id            String     @id @default(cuid())
+  connectionId  String
+  connection    Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  startedAt     DateTime   @default(now())
+  finishedAt    DateTime?
+  ok            Boolean?
+  error         String? // truncated to 500 chars by sync.job
+  campaignCount Int?
+  insightCount  Int?
+
+  @@index([connectionId, startedAt(sort: Desc)])
 }
 
 model Campaign {
@@ -90,13 +150,16 @@ model ShopifyOrder {
 }
 
 model AlertRule {
-  id        String  @id @default(cuid())
-  userId    String
-  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  metric    String // roas | frequency | budget_pace
-  operator  String // lt | gt
-  threshold Float
-  enabled   Boolean @default(true)
+  id          String     @id @default(cuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspaceId String?
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  metric      String // roas | frequency | budget_pace
+  operator    String // lt | gt
+  threshold   Float
+  enabled     Boolean    @default(true)
 
   @@index([userId])
+  @@index([workspaceId])
 }

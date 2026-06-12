@@ -5,7 +5,7 @@ import { CurrencyPipe, DecimalPipe } from "@angular/common";
 import { AuthService } from "../../core/auth.service";
 import { ConnectionsService } from "../../core/connections.service";
 import { DashboardService } from "../../core/dashboard.service";
-import { ToastService } from "../../core/toast.service";
+import { StatusBarService } from "../../core/status-bar.service";
 import { ThemeService } from "../../core/theme.service";
 import { Range, ShopifyDailyPoint, ShopifyOverview } from "../../core/models/metrics.models";
 import { Connection } from "../../core/models/connection.models";
@@ -181,7 +181,7 @@ export class ShopifyDashboardComponent implements OnInit, OnDestroy {
   readonly auth = inject(AuthService);
   private readonly api = inject(DashboardService);
   private readonly conns = inject(ConnectionsService);
-  private readonly toast = inject(ToastService);
+  private readonly status = inject(StatusBarService);
   private readonly theme = inject(ThemeService);
 
   readonly presets: { value: Range; label: string }[] = [
@@ -290,7 +290,7 @@ export class ShopifyDashboardComponent implements OnInit, OnDestroy {
       this.kpis.set(kpis);
       this.points.set(points);
     } catch {
-      this.toast.error("Could not load Shopify data");
+      this.status.error("Could not load Shopify data");
     } finally {
       this.loading.set(false);
     }
@@ -298,22 +298,22 @@ export class ShopifyDashboardComponent implements OnInit, OnDestroy {
 
   async syncNow(): Promise<void> {
     this.syncing.set(true);
-    this.toast.info("Syncing Shopify…");
+    this.status.info("Syncing Shopify…");
     try {
       const res = await this.conns.syncNow("shopify");
       const ok = res.results.filter((r) => r.ok);
       const fail = res.results.filter((r) => !r.ok);
       const orders = ok.reduce((s, r) => s + (Number(r.details?.orders) || 0), 0);
       if (ok.length === 0 && fail.length === 0) {
-        this.toast.info("No active Shopify stores to sync.");
+        this.status.info("No active Shopify stores to sync.");
       } else if (fail.length === 0) {
-        this.toast.success(`✓ Synced ${orders} new orders across ${ok.length} ${ok.length === 1 ? "store" : "stores"}`);
+        this.status.success(`✓ Synced ${orders} new orders across ${ok.length} ${ok.length === 1 ? "store" : "stores"}`);
       } else {
-        this.toast.error(`Partial sync: ${ok.length} ok, ${fail.length} failed`);
+        this.status.error(`Partial sync: ${ok.length} ok, ${fail.length} failed`);
       }
       await this.reload();
     } catch {
-      this.toast.error("Sync request failed");
+      this.status.error("Sync request failed");
     } finally {
       this.syncing.set(false);
     }

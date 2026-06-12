@@ -166,3 +166,9 @@ media-dashboard/
 claude --resume 3cb142ab-5699-4090-8107-a59cdf1dbd9f
 
 claude --resume 3cb142ab-5699-4090-8107-a59cdf1dbd9f
+
+FB app's Valid OAuth Redirect URIs : https://media-dashboard-58db5.firebaseapp.com/__/auth/handler
+
+claude --resume 3cb142ab-5699-4090-8107-a59cdf1dbd9f
+
+claude --resume 3cb142ab-5699-4090-8107-a59cdf1dbd9f

@@ -36,28 +36,28 @@ function platform(req: Request): string | undefined {
 }
 
 router.get("/overview", async (req, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  res.json(await getOverview(userId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req), platform(req)));
+  const workspaceId = (req as AuthedRequest).workspaceId;
+  res.json(await getOverview(workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req), platform(req)));
 });
 
 router.get("/timeseries", async (req, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  res.json({ points: await getTimeseries(userId, range(req), connId(req), dateParam(req, "since"), dateParam(req, "until"), platform(req)) });
+  const workspaceId = (req as AuthedRequest).workspaceId;
+  res.json({ points: await getTimeseries(workspaceId, range(req), connId(req), dateParam(req, "since"), dateParam(req, "until"), platform(req)) });
 });
 
 router.get("/campaigns", async (req, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  res.json({ campaigns: await getCampaignAggregates(userId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req), platform(req)) });
+  const workspaceId = (req as AuthedRequest).workspaceId;
+  res.json({ campaigns: await getCampaignAggregates(workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req), platform(req)) });
 });
 
 router.get("/shopify/overview", async (req, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  res.json(await getShopifyOverview(userId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req)));
+  const workspaceId = (req as AuthedRequest).workspaceId;
+  res.json(await getShopifyOverview(workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req)));
 });
 
 router.get("/shopify/timeseries", async (req, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
-  res.json({ points: await getShopifyTimeseries(userId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req)) });
+  const workspaceId = (req as AuthedRequest).workspaceId;
+  res.json({ points: await getShopifyTimeseries(workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req)) });
 });
 
 export default router;

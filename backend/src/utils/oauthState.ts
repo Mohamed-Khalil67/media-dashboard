@@ -4,6 +4,7 @@ const STATE_EXPIRY = "5m";
 
 export interface OAuthState {
   userId: string;
+  workspaceId: string;
   provider: "facebook" | "tiktok" | "shopify";
 }
 

@@ -105,8 +105,8 @@ function pctDelta(now: number, prev: number): number {
   return (now - prev) / prev;
 }
 
-async function aggregateUserMetrics(userId: string, since: Date, until: Date, connectionId?: string, platform?: string) {
-  const connFilter: Record<string, string> = { userId };
+async function aggregateUserMetrics(workspaceId: string, since: Date, until: Date, connectionId?: string, platform?: string) {
+  const connFilter: Record<string, string> = { workspaceId };
   if (connectionId) connFilter.id = connectionId;
   if (platform) connFilter.platform = platform;
 
@@ -132,14 +132,14 @@ async function aggregateUserMetrics(userId: string, since: Date, until: Date, co
   };
 }
 
-export async function getOverview(userId: string, range: string, sinceISO?: string, untilISO?: string, connectionId?: string, platform?: string): Promise<OverviewKpis> {
+export async function getOverview(workspaceId: string, range: string, sinceISO?: string, untilISO?: string, connectionId?: string, platform?: string): Promise<OverviewKpis> {
   const { since, until: now, days } = resolveWindow(range, sinceISO, untilISO);
   const prevSince = new Date(since);
   prevSince.setUTCDate(prevSince.getUTCDate() - days);
 
   const [current, previous] = await Promise.all([
-    aggregateUserMetrics(userId, since, now, connectionId, platform),
-    aggregateUserMetrics(userId, prevSince, since, connectionId, platform),
+    aggregateUserMetrics(workspaceId, since, now, connectionId, platform),
+    aggregateUserMetrics(workspaceId, prevSince, since, connectionId, platform),
   ]);
 
   const roas = safeDiv(current.revenue, current.spend);
@@ -169,10 +169,10 @@ export async function getOverview(userId: string, range: string, sinceISO?: stri
   };
 }
 
-export async function getTimeseries(userId: string, range: string, connectionId?: string, sinceISO?: string, untilISO?: string, platform?: string): Promise<TimeseriesPoint[]> {
+export async function getTimeseries(workspaceId: string, range: string, connectionId?: string, sinceISO?: string, untilISO?: string, platform?: string): Promise<TimeseriesPoint[]> {
   const { since, until: now, days } = resolveWindow(range, sinceISO, untilISO);
 
-  const connFilter: Record<string, string> = { userId };
+  const connFilter: Record<string, string> = { workspaceId };
   if (connectionId) connFilter.id = connectionId;
   if (platform) connFilter.platform = platform;
 
@@ -205,10 +205,10 @@ export async function getTimeseries(userId: string, range: string, connectionId?
   }));
 }
 
-export async function getCampaignAggregates(userId: string, range: string, sinceISO?: string, untilISO?: string, connectionId?: string, platform?: string): Promise<CampaignAggregate[]> {
+export async function getCampaignAggregates(workspaceId: string, range: string, sinceISO?: string, untilISO?: string, connectionId?: string, platform?: string): Promise<CampaignAggregate[]> {
   const { since, until: now } = resolveWindow(range, sinceISO, untilISO);
 
-  const connFilter: Record<string, string> = { userId };
+  const connFilter: Record<string, string> = { workspaceId };
   if (connectionId) connFilter.id = connectionId;
   if (platform) connFilter.platform = platform;
   const where = { connection: connFilter };
@@ -306,10 +306,10 @@ export interface ShopifyDailyPoint {
   orders: number;
 }
 
-async function aggregateShopify(userId: string, since: Date, until: Date, connectionId?: string) {
+async function aggregateShopify(workspaceId: string, since: Date, until: Date, connectionId?: string) {
   const where: Record<string, unknown> = {
     createdAt: { gte: since, lt: until },
-    connection: connectionId ? { userId, id: connectionId } : { userId },
+    connection: connectionId ? { workspaceId, id: connectionId } : { workspaceId },
   };
   const orders = await prisma.shopifyOrder.findMany({
     where,
@@ -318,7 +318,7 @@ async function aggregateShopify(userId: string, since: Date, until: Date, connec
 
   // Ad clicks across all connected platforms — used to compute conversion rate.
   const insights = await prisma.insight.findMany({
-    where: { date: { gte: since, lt: until }, campaign: { connection: { userId } } },
+    where: { date: { gte: since, lt: until }, campaign: { connection: { workspaceId } } },
     select: { clicks: true },
   });
 
@@ -328,14 +328,14 @@ async function aggregateShopify(userId: string, since: Date, until: Date, connec
   return { revenue, orders: ordersCount, clicks, orderRows: orders };
 }
 
-export async function getShopifyOverview(userId: string, range: string, sinceISO?: string, untilISO?: string, connectionId?: string): Promise<ShopifyOverview> {
+export async function getShopifyOverview(workspaceId: string, range: string, sinceISO?: string, untilISO?: string, connectionId?: string): Promise<ShopifyOverview> {
   const { since, until: now, days } = resolveWindow(range, sinceISO, untilISO);
   const prevSince = new Date(since);
   prevSince.setUTCDate(prevSince.getUTCDate() - days);
 
   const [current, previous] = await Promise.all([
-    aggregateShopify(userId, since, now, connectionId),
-    aggregateShopify(userId, prevSince, since, connectionId),
+    aggregateShopify(workspaceId, since, now, connectionId),
+    aggregateShopify(workspaceId, prevSince, since, connectionId),
   ]);
 
   const aov = safeDiv(current.revenue, current.orders);
@@ -360,12 +360,12 @@ export async function getShopifyOverview(userId: string, range: string, sinceISO
   };
 }
 
-export async function getShopifyTimeseries(userId: string, range: string, sinceISO?: string, untilISO?: string, connectionId?: string): Promise<ShopifyDailyPoint[]> {
+export async function getShopifyTimeseries(workspaceId: string, range: string, sinceISO?: string, untilISO?: string, connectionId?: string): Promise<ShopifyDailyPoint[]> {
   const { since, until: now, days } = resolveWindow(range, sinceISO, untilISO);
   const orders = await prisma.shopifyOrder.findMany({
     where: {
       createdAt: { gte: since, lt: now },
-      connection: connectionId ? { userId, id: connectionId } : { userId },
+      connection: connectionId ? { workspaceId, id: connectionId } : { workspaceId },
     },
     select: { createdAt: true, totalPrice: true },
   });

@@ -22,6 +22,16 @@ export interface SyncRunResponse {
   results: SyncRunResult[];
 }
 
+export interface SyncHistoryRun {
+  id: string;
+  startedAt: string;
+  finishedAt: string | null;
+  ok: boolean | null;
+  error: string | null;
+  campaignCount: number | null;
+  insightCount: number | null;
+}
+
 @Injectable({ providedIn: "root" })
 export class ConnectionsService {
   private readonly http = inject(HttpClient);
@@ -44,6 +54,13 @@ export class ConnectionsService {
       this.http.get<ConnectUrlResponse>(`${this.api}/${platform}/connect${query}`)
     );
     return res.url;
+  }
+
+  async getSyncHistory(connectionId: string, limit = 50): Promise<SyncHistoryRun[]> {
+    const res = await firstValueFrom(
+      this.http.get<{ runs: SyncHistoryRun[] }>(`${this.api}/connections/${connectionId}/syncs?limit=${limit}`)
+    );
+    return res.runs;
   }
 
   async syncNow(platform?: Platform): Promise<SyncRunResponse> {

@@ -75,3 +75,18 @@ export function isAuthError(err: unknown): boolean {
   }
   return false;
 }
+
+/** Pull a human-readable message out of an FB Graph API error, or fall back to the raw message. */
+export function describeSyncError(err: unknown): string {
+  if (axios.isAxiosError(err)) {
+    const fb = err.response?.data?.error;
+    if (fb) {
+      const code = fb.code ? `[${fb.code}${fb.error_subcode ? "/" + fb.error_subcode : ""}] ` : "";
+      const type = fb.type ? `${fb.type}: ` : "";
+      return `${code}${type}${fb.message ?? "Facebook API error"}`.slice(0, 500);
+    }
+    const status = err.response?.status;
+    if (status) return `HTTP ${status} from ${err.config?.url ?? "Facebook"}`.slice(0, 500);
+  }
+  return (err instanceof Error ? err.message : String(err)).slice(0, 500);
+}

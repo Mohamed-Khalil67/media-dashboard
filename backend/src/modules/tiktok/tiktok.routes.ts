@@ -4,6 +4,7 @@ import { prisma } from "../../db/client";
 import { encrypt } from "../../utils/encryption";
 import { signState, verifyState } from "../../utils/oauthState";
 import { exchangeAuthCode } from "./tiktok.service";
+import { logger } from "../../lib/logger";
 
 const router = Router();
 
@@ -11,11 +12,11 @@ const AUTH_URL = "https://business-api.tiktok.com/portal/auth";
 
 /** Step 1: return the TikTok portal auth URL. */
 router.get("/connect", requireAuth, (req: Request, res: Response) => {
-  const userId = (req as AuthedRequest).userId;
+  const { userId, workspaceId } = req as AuthedRequest;
   const params = new URLSearchParams({
     app_id: process.env.TIKTOK_APP_ID ?? "",
     redirect_uri: process.env.TIKTOK_REDIRECT_URI ?? "",
-    state: signState({ userId, provider: "tiktok" }),
+    state: signState({ userId, workspaceId, provider: "tiktok" }),
   });
   res.json({ url: `${AUTH_URL}?${params.toString()}` });
 });
@@ -29,10 +30,12 @@ router.get("/callback", async (req: Request, res: Response) => {
   }
 
   let userId: string;
+  let workspaceId: string;
   try {
     const decoded = verifyState(state);
     if (decoded.provider !== "tiktok") throw new Error("provider mismatch");
     userId = decoded.userId;
+    workspaceId = decoded.workspaceId;
   } catch {
     return res.status(400).json({ error: "Invalid or expired state" });
   }
@@ -50,9 +53,10 @@ router.get("/callback", async (req: Request, res: Response) => {
         where: {
           userId_platform_accountId: { userId, platform: "tiktok", accountId: advertiserId },
         },
-        update: { accessToken: encrypted, status: "active" },
+        update: { accessToken: encrypted, status: "active", workspaceId },
         create: {
           userId,
+          workspaceId,
           platform: "tiktok",
           accountId: advertiserId,
           accountName: `TikTok Advertiser ${advertiserId}`,
@@ -63,7 +67,7 @@ router.get("/callback", async (req: Request, res: Response) => {
 
     res.redirect(`${process.env.FRONTEND_URL}/connections?tiktok=connected&count=${advertiser_ids.length}`);
   } catch (err) {
-    console.error("TikTok callback failed:", err);
+    logger.error({ err }, "tiktok callback failed");
     res.redirect(`${process.env.FRONTEND_URL}/connections?tiktok=error`);
   }
 });
