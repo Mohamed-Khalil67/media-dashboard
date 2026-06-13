@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from "@angular/core";
 import { CurrencyPipe, DatePipe, DecimalPipe } from "@angular/common";
+import { DomSanitizer, SafeHtml } from "@angular/platform-browser";
 import { CampaignAggregate } from "../../../core/models/metrics.models";
 import { DashboardService } from "../../../core/dashboard.service";
 import { StatusBarService } from "../../../core/status-bar.service";
@@ -217,6 +218,7 @@ const VIEWS_KEY = "campaign-views.v1";
 export class CampaignTableComponent {
   private readonly dash = inject(DashboardService);
   private readonly status = inject(StatusBarService);
+  private readonly sanitizer = inject(DomSanitizer);
 
   readonly campaigns = input.required<CampaignAggregate[]>();
   readonly changed = output<void>();
@@ -266,9 +268,19 @@ export class CampaignTableComponent {
     }
   }
 
-  /** Generate a tiny SVG sparkline from a numeric series. */
-  sparkline(series: number[]): string {
-    if (!series || series.length < 2) return '<svg width="60" height="20"></svg>';
+  /**
+   * Generate a tiny SVG sparkline from a numeric series.
+   *
+   * The input is `number[]` only (from the typed CampaignAggregate model), so
+   * there is no untrusted-string path into the markup. We still wrap the
+   * result in `bypassSecurityTrustHtml` to make the trust boundary explicit:
+   * Angular's default sanitizer can rewrite SVG attributes (e.g. drop `xmlns`)
+   * and this keeps the rendered chart byte-for-byte what we generated.
+   */
+  sparkline(series: number[]): SafeHtml {
+    if (!series || series.length < 2) {
+      return this.sanitizer.bypassSecurityTrustHtml('<svg width="60" height="20"></svg>');
+    }
     const w = 60, h = 20, pad = 2;
     const max = Math.max(...series, 1);
     const min = Math.min(...series, 0);
@@ -281,7 +293,8 @@ export class CampaignTableComponent {
     const last = series[series.length - 1];
     const first = series[0];
     const color = last >= first ? "#16a34a" : "#dc2626";
-    return `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg"><polyline fill="none" stroke="${color}" stroke-width="1.5" points="${points}"/></svg>`;
+    const markup = `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg"><polyline fill="none" stroke="${color}" stroke-width="1.5" points="${points}"/></svg>`;
+    return this.sanitizer.bypassSecurityTrustHtml(markup);
   }
 
   async togglePause(c: CampaignAggregate, status: "PAUSED" | "ACTIVE"): Promise<void> {

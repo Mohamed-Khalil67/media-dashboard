@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
+import { requireRole } from "../../middleware/requireRole";
 import { prisma } from "../../db/client";
 import {
   evaluateAlerts,
@@ -9,6 +10,10 @@ import {
 
 const router = Router();
 router.use(requireAuth);
+
+// Only media buyers can mutate alert rules. Clients are strictly read-only,
+// admins manage users not data.
+const mutateGate = requireRole("media_buyer");
 
 /** Evaluated alerts derived from the workspace's rules and latest campaign data. */
 router.get("/", async (req: Request, res: Response) => {
@@ -31,7 +36,7 @@ router.get("/rules", async (req: Request, res: Response) => {
 });
 
 /** Create a new rule. */
-router.post("/rules", async (req: Request, res: Response) => {
+router.post("/rules", mutateGate, async (req: Request, res: Response) => {
   const { workspaceId, userId } = req as AuthedRequest;
   const { metric, operator, threshold } = req.body ?? {};
   if (!isSupportedMetric(metric) || !isSupportedOperator(operator) || typeof threshold !== "number") {
@@ -44,7 +49,7 @@ router.post("/rules", async (req: Request, res: Response) => {
 });
 
 /** Update threshold or enabled flag. */
-router.patch("/rules/:id", async (req: Request, res: Response) => {
+router.patch("/rules/:id", mutateGate, async (req: Request, res: Response) => {
   const { workspaceId } = req as AuthedRequest;
   const id = String(req.params.id);
   const { threshold, enabled, operator } = req.body ?? {};
@@ -67,7 +72,7 @@ router.patch("/rules/:id", async (req: Request, res: Response) => {
   res.json({ rule });
 });
 
-router.delete("/rules/:id", async (req: Request, res: Response) => {
+router.delete("/rules/:id", mutateGate, async (req: Request, res: Response) => {
   const { workspaceId } = req as AuthedRequest;
   const id = String(req.params.id);
   const existing = await prisma.alertRule.findFirst({ where: { id, workspaceId } });

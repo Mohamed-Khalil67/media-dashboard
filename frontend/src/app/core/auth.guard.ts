@@ -17,6 +17,8 @@ export const authGuard: CanActivateFn = () => {
     }
     const ref = effect(() => {
       if (!auth.authReady()) return;
+      // Order matters: destroy BEFORE resolve so a subsequent signal change
+      // can't re-fire this effect and call resolve() a second time.
       ref.destroy();
       if (auth.isLoggedIn()) return resolve(true);
       router.navigate(["/login"]);
@@ -36,6 +38,7 @@ export const guestGuard: CanActivateFn = () => {
     }
     const ref = effect(() => {
       if (!auth.authReady()) return;
+      // Order matters: destroy BEFORE resolve. See note in authGuard above.
       ref.destroy();
       if (!auth.isLoggedIn()) return resolve(true);
       router.navigate(["/dashboard"]);

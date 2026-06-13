@@ -3,6 +3,7 @@ import { Router, RouterLink, RouterLinkActive, RouterOutlet } from "@angular/rou
 import { AuthService } from "../core/auth.service";
 import { ThemeService } from "../core/theme.service";
 import { WorkspaceService } from "../core/workspace.service";
+import { StatusBarService } from "../core/status-bar.service";
 import { DropdownComponent } from "./dropdown.component";
 
 @Component({
@@ -13,8 +14,9 @@ import { DropdownComponent } from "./dropdown.component";
       <div class="brand">📊 Media Dashboard</div>
 
       <app-dropdown class="ws-switcher" #wsDd>
-        <span trigger class="ws-trigger">
-          <span class="ws-dot"></span>
+        <span trigger class="ws-trigger" role="button" tabindex="0"
+              [attr.aria-label]="'Switch workspace, currently ' + (ws.active()?.name ?? 'none selected')">
+          <span class="ws-dot" aria-hidden="true"></span>
           <span class="ws-name">{{ ws.active()?.name ?? 'Select workspace' }}</span>
         </span>
         <div menu class="ws-menu">
@@ -30,10 +32,12 @@ import { DropdownComponent } from "./dropdown.component";
               @if (w.active) { <span class="check">✓</span> }
             </button>
           }
-          <div class="ws-sep"></div>
-          <button class="ws-create" type="button" (click)="startCreate()">
-            + New workspace
-          </button>
+          @if (auth.user()?.role !== 'client') {
+            <div class="ws-sep"></div>
+            <button class="ws-create" type="button" (click)="startCreate()">
+              + New workspace
+            </button>
+          }
           @if (creating()) {
             <form class="ws-create-form" (submit)="$event.preventDefault(); createWs(wsDd)">
               <input
@@ -51,12 +55,19 @@ import { DropdownComponent } from "./dropdown.component";
 
       <nav>
         <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">Dashboard</a>
-        <a routerLink="/connections" routerLinkActive="active">Connections</a>
-        <a routerLink="/alerts" routerLinkActive="active">Alerts</a>
+        @if (auth.user()?.role !== 'client') {
+          <a routerLink="/connections" routerLinkActive="active">Connections</a>
+          <a routerLink="/alerts" routerLinkActive="active">Alerts</a>
+        }
+        @if (auth.user()?.role === 'admin') {
+          <a routerLink="/admin/access" routerLinkActive="active">Admin</a>
+        }
       </nav>
       <div class="user">
-        <button type="button" class="theme" (click)="theme.toggle()" [title]="theme.dark() ? 'Light mode' : 'Dark mode'">
-          {{ theme.dark() ? '☀' : '🌙' }}
+        <button type="button" class="theme" (click)="theme.toggle()"
+                [attr.aria-label]="theme.dark() ? 'Switch to light mode' : 'Switch to dark mode'"
+                [title]="theme.dark() ? 'Light mode' : 'Dark mode'">
+          <span aria-hidden="true">{{ theme.dark() ? '☀' : '🌙' }}</span>
         </button>
         <span>{{ auth.user()?.email }}</span>
         <button type="button" (click)="auth.logout()">Log out</button>
@@ -130,6 +141,7 @@ export class AppShellComponent implements OnInit {
   readonly theme = inject(ThemeService);
   readonly ws = inject(WorkspaceService);
   private readonly router = inject(Router);
+  private readonly status = inject(StatusBarService);
 
   readonly creating = signal(false);
   readonly newName = signal("");
@@ -148,7 +160,11 @@ export class AppShellComponent implements OnInit {
       dd.close();
       // Force a clean reload so all dashboard data reflects the new workspace.
       window.location.reload();
-    } catch { /* show pill? for now silent */ }
+    } catch {
+      // Don't reload on failure — keep the user in place so they can retry,
+      // and surface a pill so the silent-failure case is obvious.
+      this.status.error("Could not switch workspace. Please try again.");
+    }
   }
 
   startCreate(): void {
@@ -159,11 +175,15 @@ export class AppShellComponent implements OnInit {
   async createWs(dd: DropdownComponent): Promise<void> {
     const name = this.newName().trim();
     if (!name) return;
-    const ws = await this.ws.create(name);
-    await this.ws.switchTo(ws.id);
-    this.creating.set(false);
-    dd.close();
-    window.location.reload();
+    try {
+      const ws = await this.ws.create(name);
+      await this.ws.switchTo(ws.id);
+      this.creating.set(false);
+      dd.close();
+      window.location.reload();
+    } catch {
+      this.status.error("Could not create workspace. Please try again.");
+    }
   }
 
   goSettings(dd: DropdownComponent): void {

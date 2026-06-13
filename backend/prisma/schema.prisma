@@ -20,12 +20,46 @@ model User {
   name               String?
   createdAt          DateTime          @default(now())
   plan               String            @default("trial") // trial | starter | pro | agency
+  role               String            @default("client") // admin | media_buyer | client
+  disabled           Boolean           @default(false)
   stripeCustomerId   String?
   activeWorkspaceId  String?
+  lastActiveAt       DateTime? // bumped on every authenticated request; drives idle-detection for syncs
   connections        Connection[]
   alerts             AlertRule[]
   workspaceMembers   WorkspaceMember[]
   identities         Identity[]
+
+  @@index([lastActiveAt])
+}
+
+// Audit trail of hard-deleted accounts. We write a row here in the same
+// transaction as `user.delete`, so even though the User row is gone we can
+// still answer "who deleted whom, when, and what was wiped along with them".
+// Survives the cascade because it has no FK to User.
+model DeletionLog {
+  id               String   @id @default(cuid())
+  deletedUserId    String // the cuid that USED to be the User.id
+  deletedUserEmail String
+  deletedUserName  String?
+  deletedUserRole  String // admin | media_buyer | client
+  deletedBy        String // admin User.id at the time of deletion
+  deletedByEmail   String // captured at-delete so it remains readable if the admin is later deleted too
+  deletedAt        DateTime @default(now())
+  cascadeSummary   Json // { connections, campaigns, insights, syncRuns, shopifyOrders, alertRules, workspaceMembers }
+
+  @@index([deletedAt(sort: Desc)])
+  @@index([deletedByEmail])
+}
+
+// Strict invite-only allowlist. requireAuth rejects any Firebase-authenticated
+// email that isn't present here. Manage via `npm run allow:add` / Prisma Studio.
+model AllowedEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique // stored lowercased
+  note      String?
+  addedBy   String?  // userId of the admin who added it, nullable for bootstrap rows
+  createdAt DateTime @default(now())
 }
 
 model Workspace {

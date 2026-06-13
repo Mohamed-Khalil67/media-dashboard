@@ -1,6 +1,7 @@
 import type { Connection } from "@prisma/client";
 import { prisma } from "../db/client";
 import { fetchCampaigns, fetchCampaignInsights } from "../modules/tiktok/tiktok.service";
+import { toNum } from "../lib/numeric";
 
 const LOOKBACK_DAYS = Number(process.env.TIKTOK_SYNC_LOOKBACK_DAYS ?? 30);
 
@@ -40,29 +41,34 @@ export async function syncTiktok(connection: Connection): Promise<{ campaigns: n
     const date = new Date(`${datePart}T00:00:00.000Z`);
 
     const m = row.metrics;
-    const spend = Number(m.spend ?? 0);
-    const roas = Number(m.complete_payment_roas ?? 0);
+    const spend = toNum(m.spend);
+    const roas = toNum(m.complete_payment_roas);
+    const impressions = toNum(m.impressions);
+    const clicks = toNum(m.clicks);
+    const purchases = toNum(m.conversion);
+    const frequency = toNum(m.frequency);
+    const revenue = roas * spend;
 
     await prisma.insight.upsert({
       where: { campaignId_date: { campaignId, date } },
       update: {
         spend,
-        impressions: Number(m.impressions ?? 0),
-        clicks: Number(m.clicks ?? 0),
-        purchases: Number(m.conversion ?? 0),
-        frequency: Number(m.frequency ?? 0),
-        revenue: roas * spend,
+        impressions,
+        clicks,
+        purchases,
+        frequency,
+        revenue,
         raw: m as unknown as object,
       },
       create: {
         campaignId,
         date,
         spend,
-        impressions: Number(m.impressions ?? 0),
-        clicks: Number(m.clicks ?? 0),
-        purchases: Number(m.conversion ?? 0),
-        frequency: Number(m.frequency ?? 0),
-        revenue: roas * spend,
+        impressions,
+        clicks,
+        purchases,
+        frequency,
+        revenue,
         raw: m as unknown as object,
       },
     });

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../../db/client";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
+import { requireRole } from "../../middleware/requireRole";
 
 const router = Router();
 
@@ -52,7 +53,9 @@ router.get("/:id/syncs", async (req: Request, res: Response) => {
   res.json({ runs });
 });
 
-router.delete("/:id", async (req: Request, res: Response) => {
+// Only the media buyer who owns the connection should be tearing it down.
+// Clients (read-only) and admins (user-management only) are blocked.
+router.delete("/:id", requireRole("media_buyer"), async (req: Request, res: Response) => {
   const { workspaceId } = req as AuthedRequest;
   const id = String(req.params.id);
 

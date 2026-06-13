@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
+import { requireRole } from "../../middleware/requireRole";
 import { prisma } from "../../db/client";
 import { encrypt } from "../../utils/encryption";
 import { signState, verifyState } from "../../utils/oauthState";
@@ -15,7 +16,7 @@ const router = Router();
 const SCOPES = "read_orders,read_products,read_analytics";
 
 /** Step 1: build the install URL for a given shop domain. */
-router.get("/connect", requireAuth, (req: Request, res: Response) => {
+router.get("/connect", requireAuth, requireRole("media_buyer"), (req: Request, res: Response) => {
   const { userId, workspaceId } = req as AuthedRequest;
   const shop = String(req.query.shop ?? "");
 

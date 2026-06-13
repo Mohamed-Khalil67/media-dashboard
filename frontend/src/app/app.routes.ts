@@ -1,5 +1,6 @@
 import { Routes } from "@angular/router";
 import { authGuard, guestGuard } from "./core/auth.guard";
+import { blockClientGuard, roleGuard } from "./core/role.guard";
 
 export const routes: Routes = [
   {
@@ -11,6 +12,11 @@ export const routes: Routes = [
     path: "register",
     canActivate: [guestGuard],
     loadComponent: () => import("./features/auth/register.component").then((m) => m.RegisterComponent),
+  },
+  {
+    path: "forgot-password",
+    canActivate: [guestGuard],
+    loadComponent: () => import("./features/auth/forgot-password.component").then((m) => m.ForgotPasswordComponent),
   },
   {
     path: "",
@@ -30,15 +36,23 @@ export const routes: Routes = [
       },
       {
         path: "connections",
+        canActivate: [blockClientGuard],
         loadComponent: () => import("./features/connections/connections.component").then((m) => m.ConnectionsComponent),
       },
       {
         path: "alerts",
+        canActivate: [blockClientGuard],
         loadComponent: () => import("./features/alerts/alerts.component").then((m) => m.AlertsComponent),
       },
       {
         path: "workspaces",
+        canActivate: [blockClientGuard],
         loadComponent: () => import("./features/workspaces/workspaces.component").then((m) => m.WorkspacesComponent),
+      },
+      {
+        path: "admin/access",
+        canActivate: [roleGuard("admin")],
+        loadComponent: () => import("./features/admin/admin-access.component").then((m) => m.AdminAccessComponent),
       },
       { path: "", redirectTo: "dashboard/facebook", pathMatch: "full" },
     ],

@@ -11,13 +11,11 @@ import syncRoutes from "./modules/sync/sync.routes";
 import metricsRoutes from "./modules/metrics/metrics.routes";
 import alertsRoutes from "./modules/alerts/alerts.routes";
 import workspacesRoutes from "./modules/workspaces/workspaces.routes";
+import adminRoutes from "./modules/admin/admin.routes";
 import { apiLimiter } from "./middleware/rateLimit";
 import { logger } from "./lib/logger";
 
 export const app = express();
-
-// Trust the first proxy (ngrok in dev, load balancer in prod) so rate-limit sees the real client IP.
-app.set("trust proxy", 1);
 
 app.use(helmet());
 app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:4200", credentials: true }));
@@ -36,6 +34,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/connections", connectionsRoutes);
 app.use("/api/workspaces", workspacesRoutes);
+app.use("/api/admin", adminRoutes);
 // Webhooks must be mounted before facebookRoutes so they're not gated by requireAuth.
 app.use("/api/facebook/webhooks", facebookWebhookRoutes);
 app.use("/api/facebook", facebookRoutes);

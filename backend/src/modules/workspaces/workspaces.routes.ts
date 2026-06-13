@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../../db/client";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
+import { requireRole } from "../../middleware/requireRole";
 
 const router = Router();
 router.use(requireAuth);
@@ -31,8 +32,8 @@ router.get("/", async (req: Request, res: Response) => {
   });
 });
 
-/** Create a new workspace; caller becomes owner. */
-router.post("/", async (req: Request, res: Response) => {
+/** Create a new workspace; caller becomes owner. Media buyers only. */
+router.post("/", requireRole("media_buyer"), async (req: Request, res: Response) => {
   const { userId } = req as AuthedRequest;
   const { name } = req.body ?? {};
   if (typeof name !== "string" || name.trim().length === 0) {
@@ -62,8 +63,8 @@ router.post("/switch", async (req: Request, res: Response) => {
   res.json({ ok: true, activeWorkspaceId: workspaceId });
 });
 
-/** Rename a workspace (owner only). */
-router.patch("/:id", async (req: Request, res: Response) => {
+/** Rename a workspace (owner + media buyer only). */
+router.patch("/:id", requireRole("media_buyer"), async (req: Request, res: Response) => {
   const { userId } = req as AuthedRequest;
   const id = String(req.params.id);
   const { name } = req.body ?? {};

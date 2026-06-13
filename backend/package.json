@@ -12,7 +12,10 @@
     "prisma:studio": "prisma studio",
     "test": "vitest run",
     "test:watch": "vitest",
-    "tunnel": "ngrok http --domain=flattered-flakily-cloud.ngrok-free.dev 3000"
+    "allow:add": "ts-node-dev --transpile-only scripts/allowEmail.ts add",
+    "allow:remove": "ts-node-dev --transpile-only scripts/allowEmail.ts remove",
+    "allow:list": "ts-node-dev --transpile-only scripts/allowEmail.ts list",
+    "set-password": "ts-node-dev --transpile-only scripts/setPassword.ts"
   },
   "keywords": [],
   "author": "",

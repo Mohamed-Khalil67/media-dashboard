@@ -6,6 +6,7 @@ import {
   extractPurchaseRoas,
   extractPurchases,
 } from "../modules/facebook/facebook.service";
+import { toNum } from "../lib/numeric";
 
 /** Pull campaigns + a daily insight row per day-of-window for one Facebook connection. */
 export async function syncFacebook(connection: Connection): Promise<{ campaigns: number; days: number }> {
@@ -34,12 +35,12 @@ export async function syncFacebook(connection: Connection): Promise<{ campaigns:
       // Parse "YYYY-MM-DD" → UTC midnight to match how we store/query Insight.date.
       const date = new Date(`${insight.date_start}T00:00:00.000Z`);
 
-      const spend = Number(insight.spend ?? 0);
-      const impressions = Number(insight.impressions ?? 0);
-      const clicks = Number(insight.clicks ?? 0);
-      const frequency = Number(insight.frequency ?? 0);
-      const purchases = extractPurchases(insight);
-      const roas = extractPurchaseRoas(insight);
+      const spend = toNum(insight.spend);
+      const impressions = toNum(insight.impressions);
+      const clicks = toNum(insight.clicks);
+      const frequency = toNum(insight.frequency);
+      const purchases = toNum(extractPurchases(insight));
+      const roas = toNum(extractPurchaseRoas(insight));
       const revenue = roas > 0 ? roas * spend : 0;
 
       await prisma.insight.upsert({

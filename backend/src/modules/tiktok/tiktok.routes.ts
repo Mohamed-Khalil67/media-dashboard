@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
+import { requireRole } from "../../middleware/requireRole";
 import { prisma } from "../../db/client";
 import { encrypt } from "../../utils/encryption";
 import { signState, verifyState } from "../../utils/oauthState";
@@ -11,7 +12,7 @@ const router = Router();
 const AUTH_URL = "https://business-api.tiktok.com/portal/auth";
 
 /** Step 1: return the TikTok portal auth URL. */
-router.get("/connect", requireAuth, (req: Request, res: Response) => {
+router.get("/connect", requireAuth, requireRole("media_buyer"), (req: Request, res: Response) => {
   const { userId, workspaceId } = req as AuthedRequest;
   const params = new URLSearchParams({
     app_id: process.env.TIKTOK_APP_ID ?? "",

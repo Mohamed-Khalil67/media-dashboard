@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from "@angular/core";
 import { RouterLink } from "@angular/router";
 import { NgApexchartsModule, ApexOptions } from "ng-apexcharts";
-import { CurrencyPipe, DecimalPipe } from "@angular/common";
 import { AuthService } from "../../core/auth.service";
 import { ConnectionsService } from "../../core/connections.service";
 import { DashboardService } from "../../core/dashboard.service";
@@ -13,12 +12,11 @@ import { KpiCardComponent } from "./components/kpi-card.component";
 import { DropdownComponent } from "../../shared/dropdown.component";
 import { DashboardTabsComponent } from "./dashboard-tabs.component";
 
-const REFRESH_MS = 5 * 60 * 1000;
 
 @Component({
   selector: "app-shopify-dashboard",
   imports: [
-    RouterLink, NgApexchartsModule, CurrencyPipe, DecimalPipe,
+    RouterLink, NgApexchartsModule,
     KpiCardComponent, DropdownComponent, DashboardTabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -240,15 +238,13 @@ export class ShopifyDashboardComponent implements OnInit, OnDestroy {
     };
   });
 
-  private refreshTimer: ReturnType<typeof setInterval> | null = null;
-
   ngOnInit(): void {
     this.loadConnections();
     this.reload();
-    this.refreshTimer = setInterval(() => this.reload(), REFRESH_MS);
   }
   ngOnDestroy(): void {
-    if (this.refreshTimer) clearInterval(this.refreshTimer);
+    // Hook kept for symmetry with the FB dashboard; nothing to clean up
+    // now that auto-refresh is gone.
   }
 
   async loadConnections(): Promise<void> {

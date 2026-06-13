@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
+import { requireRole } from "../../middleware/requireRole";
 import { prisma } from "../../db/client";
 import { runAllConnections } from "../../jobs/sync.job";
 import { syncFacebook, isAuthError, describeSyncError } from "../../jobs/sync.facebook";
@@ -12,7 +13,7 @@ const router = Router();
 router.use(requireAuth);
 
 /** Trigger sync for the calling workspace's active connections, optionally filtered by platform. */
-router.post("/run", async (req: Request, res: Response) => {
+router.post("/run", requireRole("media_buyer"), async (req: Request, res: Response) => {
   const { workspaceId } = req as AuthedRequest;
   const platformRaw = typeof req.query.platform === "string" ? req.query.platform : undefined;
   const platform = platformRaw && ["facebook", "tiktok", "shopify"].includes(platformRaw) ? platformRaw : undefined;
@@ -71,8 +72,8 @@ router.post("/run", async (req: Request, res: Response) => {
   res.json({ ranAt: new Date().toISOString(), results });
 });
 
-/** Admin-only: trigger sync for ALL users. Gate this in production. */
-router.post("/run-all", async (_req: Request, res: Response) => {
+/** Media-buyer-only test helper: trigger sync for ALL users. Gated to non-prod. */
+router.post("/run-all", requireRole("media_buyer"), async (_req: Request, res: Response) => {
   if (process.env.NODE_ENV === "production") {
     return res.status(403).json({ error: "Disabled in production" });
   }

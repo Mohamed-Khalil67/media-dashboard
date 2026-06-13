@@ -19,10 +19,10 @@ import { RoasChartComponent } from "./components/roas-chart.component";
 import { CampaignTableComponent } from "./components/campaign-table.component";
 import { FunnelComponent } from "./components/funnel.component";
 import { AlertsPanelComponent } from "./components/alerts-panel.component";
+import { RefreshBarComponent } from "./components/refresh-bar.component";
 import { DropdownComponent } from "../../shared/dropdown.component";
 import { DashboardTabsComponent } from "./dashboard-tabs.component";
 
-const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
 
 @Component({
   selector: "app-dashboard",
@@ -86,7 +86,13 @@ const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
                 <span>→</span>
                 <input type="date" [value]="customUntil()" (change)="customUntil.set($any($event.target).value)" />
               </div>
-              <button class="apply" (click)="applyCustom(); dateDD.close()">Apply</button>
+              @if (customRangeInvalid()) {
+                <p class="range-error">End date must be on or after start date.</p>
+              }
+              <button
+                class="apply"
+                [disabled]="customRangeInvalid()"
+                (click)="applyCustom(); dateDD.close()">Apply</button>
             </div>
           </div>
         </app-dropdown>
@@ -134,22 +140,11 @@ const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
           </app-dropdown>
         }
 
-        <!-- Settings dropdown -->
-        <app-dropdown align="right">
-          <span trigger>
-            <span class="ico">⚙</span>
-          </span>
-          <div menu class="settings-menu">
-            <label class="settings-item">
-              <input type="checkbox" [checked]="autoRefresh()" (change)="toggleAuto($any($event.target).checked)" />
-              <span>Auto-refresh (5 min)</span>
-            </label>
-          </div>
-        </app-dropdown>
-
-        <button class="sync" (click)="syncNow()" [disabled]="syncing()">
-          {{ syncing() ? "Syncing…" : "Sync now" }}
-        </button>
+        @if (canSync()) {
+          <button class="sync" (click)="syncNow()" [disabled]="syncing()">
+            {{ syncing() ? "Syncing…" : "Sync now" }}
+          </button>
+        }
       </div>
     </header>
 
@@ -157,6 +152,12 @@ const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
       <div class="health-banner health-banner--err">
         <strong>{{ msg }}</strong>
         <a (click)="reload()" style="cursor: pointer">Retry →</a>
+      </div>
+    }
+    @if (isStale()) {
+      <div class="health-banner health-banner--stale">
+        <strong>Data is from {{ lastUpdatedRel() }} — syncing paused.</strong>
+        <span>Fresh data syncs only while your media buyer is active. You can still browse and filter what's already loaded.</span>
       </div>
     }
     @if (expiredConnections().length > 0) {
@@ -262,6 +263,8 @@ const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
     .dates span { color: var(--muted); }
     .apply { width: 100%; background: #4f46e5; color: #fff; border: 0; padding: .4rem; border-radius: .375rem; cursor: pointer; font-size: .85rem; font-weight: 500; }
     .apply:hover { background: #4338ca; }
+    .apply:disabled { background: #94a3b8; cursor: not-allowed; }
+    .range-error { color: #dc2626; font-size: .72rem; margin: 0 0 .5rem; text-transform: none; letter-spacing: 0; }
 
     .acct-menu { padding: .25rem; min-width: 18rem; }
     .acct-search { width: 100%; border: 1px solid var(--input-bd); border-radius: .375rem; padding: .4rem .55rem; background: var(--card-bg); color: var(--text); font-size: .85rem; outline: none; margin-bottom: .25rem; }
@@ -276,9 +279,6 @@ const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
     .exp-dot { color: #f59e0b; font-size: .6rem; }
     .empty-small { padding: 1rem; text-align: center; color: var(--text-muted); font-size: .85rem; }
 
-    .settings-menu { padding: .25rem; min-width: 13rem; }
-    .settings-item { display: flex; align-items: center; gap: .5rem; padding: .45rem .55rem; border-radius: .375rem; cursor: pointer; color: var(--text); font-size: .85rem; user-select: none; }
-    .settings-item:hover { background: var(--ghost-bg); }
 
     .health-banner { background: #fef3c7; border: 1px solid #fbbf24; color: #92400e; padding: .65rem 1rem; border-radius: .5rem; margin-bottom: 1rem; font-size: .9rem; }
     .health-banner a { color: #b45309; font-weight: 500; text-decoration: none; margin-left: .25rem; }
@@ -289,6 +289,8 @@ const REFRESH_MS = 5 * 60 * 1000; // 5 minutes
     .health-banner--err a { color: #b91c1c; }
     :host-context(html.dark) .health-banner--err { background: #7f1d1d; border-color: #b91c1c; color: #fca5a5; }
     :host-context(html.dark) .health-banner--err a { color: #fca5a5; }
+    .health-banner--stale { display: flex; flex-direction: column; gap: .2rem; }
+    .health-banner--stale span { font-size: .8rem; opacity: .9; font-weight: 400; }
 
     .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1rem; margin-bottom: 1rem; }
     @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
@@ -331,6 +333,8 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly conns = inject(ConnectionsService);
   private readonly alertsApi = inject(AlertsService);
   private readonly status = inject(StatusBarService);
+  /** Only media buyers can trigger writes (sync, connect, delete). Clients are read-only. */
+  readonly canSync = computed(() => this.auth.user()?.role === "media_buyer");
   readonly loadError = signal<string | null>(null);
 
   /** Bound from the route param /dashboard/:platform — "facebook" or "tiktok". */
@@ -346,7 +350,17 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly customMode = signal(false);
   readonly customSince = signal(this.daysAgoISO(7));
   readonly customUntil = signal(this.todayISO());
-  readonly autoRefresh = signal(true);
+  /**
+   * The custom-range picker has no cross-field validator on the native inputs,
+   * so guard the Apply button against an inverted range (end before start) —
+   * otherwise the dashboard silently renders an empty graph.
+   */
+  readonly customRangeInvalid = computed(() => {
+    const since = this.customSince();
+    const until = this.customUntil();
+    if (!since || !until) return false;
+    return since > until;
+  });
   readonly acctSearch = signal("");
   readonly loading = signal(false);
   readonly syncing = signal(false);
@@ -425,7 +439,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
     return `${hr}h ago`;
   });
 
-  private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  /**
+   * True when the data hasn't refreshed in over 4 hours. We use this to show a
+   * "syncing paused" banner — outside the activity window the backend cron skips
+   * this user's connections, so the dashboard is stale by design.
+   */
+  readonly STALE_THRESHOLD_HOURS = 4;
+  readonly isStale = computed(() => {
+    const t = this.lastUpdated();
+    if (!t) return false;
+    const hours = (this.nowTick() - t.getTime()) / (1000 * 60 * 60);
+    return hours >= this.STALE_THRESHOLD_HOURS;
+  });
+
   private tickTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
@@ -444,26 +470,12 @@ export class DashboardComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadConnections();
     this.reload();
-    this.startAutoRefresh();
     // Tick every 10s to keep "Last updated Xs ago" fresh without re-fetching data.
     this.tickTimer = setInterval(() => this.nowTick.set(Date.now()), 10_000);
   }
 
   ngOnDestroy(): void {
-    this.stopAutoRefresh();
     if (this.tickTimer) clearInterval(this.tickTimer);
-  }
-
-  private startAutoRefresh(): void {
-    if (this.refreshTimer || !this.autoRefresh()) return;
-    this.refreshTimer = setInterval(() => this.reload(), REFRESH_MS);
-  }
-  private stopAutoRefresh(): void {
-    if (this.refreshTimer) { clearInterval(this.refreshTimer); this.refreshTimer = null; }
-  }
-  toggleAuto(on: boolean): void {
-    this.autoRefresh.set(on);
-    if (on) this.startAutoRefresh(); else this.stopAutoRefresh();
   }
 
   async loadConnections(): Promise<void> {

@@ -1,6 +1,7 @@
 import type { Connection } from "@prisma/client";
 import { prisma } from "../db/client";
 import { fetchOrders } from "../modules/shopify/shopify.service";
+import { toNum } from "../lib/numeric";
 
 /** Pull recent Shopify orders for one connection. Only fetches since the last seen order. */
 export async function syncShopify(connection: Connection): Promise<{ orders: number }> {
@@ -18,14 +19,14 @@ export async function syncShopify(connection: Connection): Promise<{ orders: num
         connectionId_externalId: { connectionId: connection.id, externalId: String(order.id) },
       },
       update: {
-        totalPrice: Number(order.total_price),
+        totalPrice: toNum(order.total_price),
         createdAt: new Date(order.created_at),
         raw: order as unknown as object,
       },
       create: {
         connectionId: connection.id,
         externalId: String(order.id),
-        totalPrice: Number(order.total_price),
+        totalPrice: toNum(order.total_price),
         createdAt: new Date(order.created_at),
         raw: order as unknown as object,
       },

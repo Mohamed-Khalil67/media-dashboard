@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
+import { requireRole } from "../../middleware/requireRole";
 import { prisma } from "../../db/client";
 import { encrypt } from "../../utils/encryption";
 import { signState, verifyState } from "../../utils/oauthState";
@@ -12,7 +13,7 @@ const GRAPH_VERSION = process.env.FB_GRAPH_VERSION ?? "v21.0";
 const SCOPES = "ads_read,ads_management";
 
 /** Step 1: return the Facebook OAuth dialog URL for the authenticated user to visit. */
-router.get("/connect", requireAuth, (req: Request, res: Response) => {
+router.get("/connect", requireAuth, requireRole("media_buyer"), (req: Request, res: Response) => {
   const { userId, workspaceId } = req as AuthedRequest;
   const params = new URLSearchParams({
     client_id: process.env.FB_APP_ID ?? "",
@@ -80,7 +81,7 @@ router.get("/callback", async (req: Request, res: Response) => {
 });
 
 /** POST /api/facebook/campaigns/:campaignId/status — pause or resume a campaign. */
-router.post("/campaigns/:campaignId/status", requireAuth, async (req: Request, res: Response) => {
+router.post("/campaigns/:campaignId/status", requireAuth, requireRole("media_buyer"), async (req: Request, res: Response) => {
   const { workspaceId } = req as AuthedRequest;
   const campaignDbId = String(req.params.campaignId);
   const { status } = req.body as { status?: string };
