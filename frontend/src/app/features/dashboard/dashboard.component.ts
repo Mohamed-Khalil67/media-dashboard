@@ -20,6 +20,7 @@ import { CampaignTableComponent } from "./components/campaign-table.component";
 import { FunnelComponent } from "./components/funnel.component";
 import { AlertsPanelComponent } from "./components/alerts-panel.component";
 import { RefreshBarComponent } from "./components/refresh-bar.component";
+import { RangeSelectorComponent } from "./components/range-selector.component";
 import { DropdownComponent } from "../../shared/dropdown.component";
 import { DashboardTabsComponent } from "./dashboard-tabs.component";
 
@@ -35,6 +36,8 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
     CampaignTableComponent,
     FunnelComponent,
     AlertsPanelComponent,
+    RefreshBarComponent,
+    RangeSelectorComponent,
     DropdownComponent,
     DashboardTabsComponent,
   ],
@@ -46,15 +49,7 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
         <h1>{{ platformLabel() }} Dashboard</h1>
         <div class="status-row">
           <span class="muted">Welcome back, {{ auth.user()?.name ?? auth.user()?.email }}.</span>
-          @if (lastUpdated()) {
-            <span class="pill" [class.pill--refreshing]="refreshing()" [title]="lastUpdated()!.toISOString()">
-              @if (refreshing()) {
-                <span class="dot-anim"></span> Refreshing…
-              } @else {
-                <span class="dot dot--ok"></span> Last updated {{ lastUpdatedRel() }}
-              }
-            </span>
-          }
+          <app-refresh-bar [lastUpdated]="lastUpdated()" [refreshing]="refreshing()" (refresh)="reload()" />
           @if (kpis() && campaigns().length > 0) {
             <span class="pill pill--info">
               {{ campaigns().length }} campaigns • {{ activeAccountCount() }} {{ activeAccountCount() === 1 ? 'account' : 'accounts' }}
@@ -64,38 +59,16 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
       </div>
       <div class="actions">
 
-        <!-- Date range dropdown -->
-        <app-dropdown #dateDD>
-          <span trigger>
-            <span class="ico">📅</span>
-            <span class="lbl">{{ dateLabel() }}</span>
-          </span>
-          <div menu class="date-menu">
-            <div class="presets">
-              @for (p of presets; track p.value) {
-                <button
-                  class="preset"
-                  [class.active]="!customMode() && range() === p.value"
-                  (click)="pickPreset(p.value); dateDD.close()">{{ p.label }}</button>
-              }
-            </div>
-            <div class="custom-zone">
-              <p class="muted">Custom range</p>
-              <div class="dates">
-                <input type="date" [value]="customSince()" (change)="customSince.set($any($event.target).value)" />
-                <span>→</span>
-                <input type="date" [value]="customUntil()" (change)="customUntil.set($any($event.target).value)" />
-              </div>
-              @if (customRangeInvalid()) {
-                <p class="range-error">End date must be on or after start date.</p>
-              }
-              <button
-                class="apply"
-                [disabled]="customRangeInvalid()"
-                (click)="applyCustom(); dateDD.close()">Apply</button>
-            </div>
-          </div>
-        </app-dropdown>
+        <!-- Date range dropdown — shared with the Shopify dashboard -->
+        <app-range-selector
+          [range]="range()"
+          [customMode]="customMode()"
+          [customSince]="customSince()"
+          [customUntil]="customUntil()"
+          (pickPreset)="pickPreset($event)"
+          (updateCustomSince)="customSince.set($event)"
+          (updateCustomUntil)="customUntil.set($event)"
+          (applyCustom)="applyCustomFromShared($event)" />
 
         <!-- Account selector dropdown -->
         @if (fbConnections().length > 0) {
@@ -238,33 +211,12 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
     .status-row { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
     .pill { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .55rem; background: var(--ghost-bg); border: 1px solid var(--card-bd); border-radius: 999px; font-size: .75rem; color: var(--text-muted); }
     .pill--info { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
-    .pill--refreshing { background: #fef3c7; color: #92400e; border-color: #fbbf24; }
-    :host-context(html.dark) .pill--refreshing { background: #78350f; color: #fcd34d; }
-    .pill .dot { width: .45rem; height: .45rem; border-radius: 999px; }
-    .pill .dot--ok { background: #16a34a; }
-    .dot-anim { width: .55rem; height: .55rem; border-radius: 999px; background: currentColor; animation: pulse 1s ease-in-out infinite; }
-    @keyframes pulse { 0%, 100% { opacity: .4; } 50% { opacity: 1; } }
     .actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
     .ico { font-size: .95rem; }
     .lbl { font-weight: 500; color: var(--text); }
     .sync { background: #4f46e5; color: #fff; border: 0; padding: .5rem 1rem; border-radius: .5rem; cursor: pointer; font-weight: 500; font-size: .85rem; }
     .sync:hover:not(:disabled) { background: #4338ca; }
     .sync:disabled { opacity: .55; cursor: not-allowed; }
-
-    .date-menu { padding: 0; min-width: 18rem; }
-    .presets { display: flex; flex-direction: column; padding: .25rem; }
-    .preset { background: transparent; border: 0; padding: .5rem .75rem; border-radius: .375rem; cursor: pointer; text-align: left; color: var(--text); font-size: .85rem; }
-    .preset:hover { background: var(--ghost-bg); }
-    .preset.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
-    .custom-zone { border-top: 1px solid var(--card-bd); padding: .65rem .75rem .75rem; }
-    .custom-zone p { font-size: .75rem; margin: 0 0 .35rem; text-transform: uppercase; letter-spacing: .04em; }
-    .dates { display: flex; align-items: center; gap: .35rem; margin-bottom: .5rem; }
-    .dates input { flex: 1; border: 1px solid var(--input-bd); border-radius: .375rem; padding: .35rem .5rem; background: var(--card-bg); color: var(--text); font-size: .85rem; outline: none; }
-    .dates span { color: var(--muted); }
-    .apply { width: 100%; background: #4f46e5; color: #fff; border: 0; padding: .4rem; border-radius: .375rem; cursor: pointer; font-size: .85rem; font-weight: 500; }
-    .apply:hover { background: #4338ca; }
-    .apply:disabled { background: #94a3b8; cursor: not-allowed; }
-    .range-error { color: #dc2626; font-size: .72rem; margin: 0 0 .5rem; text-transform: none; letter-spacing: 0; }
 
     .acct-menu { padding: .25rem; min-width: 18rem; }
     .acct-search { width: 100%; border: 1px solid var(--input-bd); border-radius: .375rem; padding: .4rem .55rem; background: var(--card-bg); color: var(--text); font-size: .85rem; outline: none; margin-bottom: .25rem; }
@@ -341,26 +293,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly platform = input<AdPlatform>("facebook");
   readonly platformLabel = computed(() => this.platform() === "tiktok" ? "TikTok" : "Facebook");
 
-  readonly presets: { value: Range; label: string }[] = [
-    { value: "7d",  label: "Last 7 days" },
-    { value: "14d", label: "Last 14 days" },
-    { value: "30d", label: "Last 30 days" },
-  ];
   readonly range = signal<Range>("7d");
   readonly customMode = signal(false);
   readonly customSince = signal(this.daysAgoISO(7));
   readonly customUntil = signal(this.todayISO());
-  /**
-   * The custom-range picker has no cross-field validator on the native inputs,
-   * so guard the Apply button against an inverted range (end before start) —
-   * otherwise the dashboard silently renders an empty graph.
-   */
-  readonly customRangeInvalid = computed(() => {
-    const since = this.customSince();
-    const until = this.customUntil();
-    if (!since || !until) return false;
-    return since > until;
-  });
   readonly acctSearch = signal("");
   readonly loading = signal(false);
   readonly syncing = signal(false);
@@ -407,11 +343,6 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const dailyAvg = totalSpend / daysWithSpend;
     const days = points.length || 7;
     return { dailyAvg, days, projected: dailyAvg * days };
-  });
-
-  readonly dateLabel = computed(() => {
-    if (this.customMode()) return `${this.customSince()} → ${this.customUntil()}`;
-    return this.presets.find((p) => p.value === this.range())?.label ?? this.range();
   });
 
   readonly accountLabel = computed(() => {
@@ -494,6 +425,18 @@ export class DashboardComponent implements OnInit, OnDestroy {
   }
 
   applyCustom(): void {
+    this.customMode.set(true);
+    this.reload();
+  }
+
+  /**
+   * Handler for the shared range-selector's `applyCustom` output. The component
+   * gives us the explicit since/until pair it just validated, so we commit them
+   * straight into our state.
+   */
+  applyCustomFromShared(ev: { since: string; until: string }): void {
+    this.customSince.set(ev.since);
+    this.customUntil.set(ev.until);
     this.customMode.set(true);
     this.reload();
   }

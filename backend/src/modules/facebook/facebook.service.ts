@@ -89,3 +89,115 @@ export async function setCampaignStatus(connection: Connection, externalCampaign
     params: { access_token: token, status },
   });
 }
+
+/** Rename a Facebook campaign. Requires ads_management scope. */
+export async function renameCampaign(connection: Connection, externalCampaignId: string, name: string): Promise<void> {
+  const token = decrypt(connection.accessToken);
+  await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, {
+    params: { access_token: token, name },
+  });
+}
+
+/**
+ * Update the budget of a Facebook campaign. Pass either `dailyBudget` or
+ * `lifetimeBudget` (or both — Graph API will accept and FB only enforces one
+ * is active per campaign based on `pacing_type` / `bid_strategy` setup).
+ *
+ * Values are passed in MAJOR units (e.g. dollars/EGP) and converted to MINOR
+ * units (cents/piastres) here, because Graph API budget fields are minor-unit
+ * integers. The caller's currency context is the campaign's account currency.
+ */
+export async function updateCampaignBudget(
+  connection: Connection,
+  externalCampaignId: string,
+  budget: { dailyBudget?: number; lifetimeBudget?: number },
+): Promise<void> {
+  const token = decrypt(connection.accessToken);
+  const params: Record<string, string | number> = { access_token: token };
+  if (typeof budget.dailyBudget === "number") {
+    params.daily_budget = Math.round(budget.dailyBudget * 100);
+  }
+  if (typeof budget.lifetimeBudget === "number") {
+    params.lifetime_budget = Math.round(budget.lifetimeBudget * 100);
+  }
+  await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, { params });
+}
+
+/**
+ * Update the start / end schedule of a Facebook campaign.
+ *
+ * Both fields are optional. Values are ISO-8601 strings; Graph API stores
+ * Unix timestamps but accepts ISO and converts internally.
+ */
+export async function updateCampaignSchedule(
+  connection: Connection,
+  externalCampaignId: string,
+  schedule: { startTime?: string; endTime?: string },
+): Promise<void> {
+  const token = decrypt(connection.accessToken);
+  const params: Record<string, string> = { access_token: token };
+  if (schedule.startTime) params.start_time = schedule.startTime;
+  if (schedule.endTime) params.stop_time = schedule.endTime;
+  await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, { params });
+}
+
+/**
+ * Duplicate a Facebook campaign via the Graph `/copies` edge, then optionally
+ * apply per-field overrides on the resulting campaign.
+ *
+ * The shell-only path (no ad-set / ad copying) is used here: it's the fastest
+ * to clone and the most common "let me test a variant" workflow. Pass
+ * `startPaused: true` (default) to keep the new campaign from spending while
+ * the media buyer finishes setting it up.
+ *
+ * Returns the new campaign's Graph ID so the caller can sync it into the DB.
+ */
+export async function duplicateCampaign(
+  connection: Connection,
+  sourceExternalCampaignId: string,
+  overrides: {
+    name?: string;
+    dailyBudget?: number;
+    lifetimeBudget?: number;
+    startTime?: string;
+    endTime?: string;
+    startPaused?: boolean;
+  } = {},
+): Promise<{ newCampaignId: string }> {
+  const token = decrypt(connection.accessToken);
+
+  // Step 1: clone the campaign shell. `deep_copy=false` keeps it shell-only.
+  // `status_option=PAUSED` ensures the clone starts paused regardless of source.
+  const copyParams: Record<string, string | boolean> = {
+    access_token: token,
+    deep_copy: false,
+    status_option: overrides.startPaused === false ? "ACTIVE" : "PAUSED",
+  };
+  if (overrides.name) copyParams.rename_options = JSON.stringify({ rename_suffix: "", rename_prefix: "", rename_strategy: "ONLY_TOP_LEVEL_RENAME" });
+
+  const copyRes = await axios.post<{ copied_campaign_id?: string; id?: string }>(
+    `${GRAPH_BASE}/${sourceExternalCampaignId}/copies`,
+    null,
+    { params: copyParams },
+  );
+  const newCampaignId = copyRes.data.copied_campaign_id ?? copyRes.data.id;
+  if (!newCampaignId) {
+    throw new Error("Facebook copy response missing copied_campaign_id");
+  }
+
+  // Step 2: apply overrides on the new campaign. Run as a single POST so we
+  // don't burn extra Graph quota.
+  const patchParams: Record<string, string | number> = { access_token: token };
+  if (overrides.name) patchParams.name = overrides.name;
+  if (typeof overrides.dailyBudget === "number") patchParams.daily_budget = Math.round(overrides.dailyBudget * 100);
+  if (typeof overrides.lifetimeBudget === "number") patchParams.lifetime_budget = Math.round(overrides.lifetimeBudget * 100);
+  if (overrides.startTime) patchParams.start_time = overrides.startTime;
+  if (overrides.endTime) patchParams.stop_time = overrides.endTime;
+
+  // Only fire the second call if there's something to update.
+  if (Object.keys(patchParams).length > 1) {
+    await axios.post(`${GRAPH_BASE}/${newCampaignId}`, null, { params: patchParams });
+  }
+
+  return { newCampaignId };
+}

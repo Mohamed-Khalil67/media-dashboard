@@ -77,11 +77,11 @@ const VIEWS_KEY = "campaign-views.v1";
         <table>
           <thead>
             <tr>
-              <th></th>
-              <th (click)="toggleSort('name')">Campaign</th>
-              <th (click)="toggleSort('accountName')">Account</th>
-              <th (click)="toggleSort('platform')">Platform</th>
-              <th (click)="toggleSort('createdAtPlatform')">Created</th>
+              <th class="col-flag"></th>
+              <th class="col-name" (click)="toggleSort('name')">Campaign</th>
+              <th class="col-account" (click)="toggleSort('accountName')">Account</th>
+              <th class="col-tight" (click)="toggleSort('platform')">Platform</th>
+              <th class="col-tight col-created" (click)="toggleSort('createdAtPlatform')">Created</th>
               <th (click)="toggleSort('spend')" class="num">Spend</th>
               <th (click)="toggleSort('revenue')" class="num">Revenue</th>
               <th (click)="toggleSort('purchases')" class="num">Purchases</th>
@@ -91,8 +91,8 @@ const VIEWS_KEY = "campaign-views.v1";
                 <th (click)="toggleSort('cpa')" class="num">CPA</th>
               }
               <th (click)="toggleSort('frequency')" class="num">Freq.</th>
-              <th>Trend</th>
-              <th>Actions</th>
+              <th class="col-trend">Trend</th>
+              <th class="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -102,13 +102,39 @@ const VIEWS_KEY = "campaign-views.v1";
                   @if (c.deliveryStalled) { <span class="flag flag--stalled" title="Delivery stopped">⏸</span> }
                   @if (c.anomalous) { <span class="flag flag--anomaly" title="Anomalous spend today">⚡</span> }
                 </td>
-                <td class="name">
-                  <div>{{ c.name }}</div>
+                <td class="name" [title]="c.name">
+                  @if (renamingId() === c.campaignId) {
+                    <input
+                      class="name-edit"
+                      [value]="renameDraft()"
+                      [disabled]="renameSaving()"
+                      (input)="renameDraft.set(asValue($event))"
+                      (keydown.enter)="commitRename(c)"
+                      (keydown.escape)="cancelRename()"
+                      (blur)="commitRename(c)"
+                      autoFocus
+                      maxlength="400"
+                      aria-label="Rename campaign"
+                    />
+                  } @else {
+                    @if (c.platform === 'facebook' && c.status !== 'ARCHIVED' && c.status !== 'DELETED') {
+                      <button
+                        type="button"
+                        class="name-trigger"
+                        (click)="startRename(c)"
+                        [title]="c.name"
+                      >
+                        <span class="name-text">{{ c.name }}</span>
+                      </button>
+                    } @else {
+                      <div class="name-text">{{ c.name }}</div>
+                    }
+                  }
                   <small class="muted">{{ c.status }}</small>
                 </td>
-                <td class="account-name">{{ c.accountName }}</td>
+                <td class="account-name" [title]="c.accountName">{{ c.accountName }}</td>
                 <td><span class="badge badge--{{ c.platform }}">{{ c.platform }}</span></td>
-                <td class="created">
+                <td class="created col-created">
                   @if (c.createdAtPlatform) {
                     {{ c.createdAtPlatform | date: "mediumDate" }}
                   } @else {
@@ -134,16 +160,39 @@ const VIEWS_KEY = "campaign-views.v1";
                   </td>
                 }
                 <td class="num">{{ c.frequency | number: "1.2-2" }}</td>
-                <td class="sparkline" [innerHTML]="sparkline(c.dailyRoas)"></td>
+                <td class="sparkline col-trend" [innerHTML]="sparkline(c.dailyRoas)"></td>
                 <td class="actions">
-                  @if (c.platform === 'facebook') {
-                    @if (c.status === 'ACTIVE') {
-                      <button class="btn-action pause" (click)="togglePause(c, 'PAUSED')" [disabled]="busy() === c.campaignId">Pause</button>
-                    } @else if (c.status === 'PAUSED') {
-                      <button class="btn-action resume" (click)="togglePause(c, 'ACTIVE')" [disabled]="busy() === c.campaignId">Resume</button>
-                    } @else {
-                      <span class="muted">—</span>
-                    }
+                  @if (c.platform === 'facebook' && (c.status === 'ACTIVE' || c.status === 'PAUSED')) {
+                    <app-dropdown #actDD align="right">
+                      <span trigger class="actions-trigger-label">Actions</span>
+                      <div menu class="row-actions-panel">
+                        @if (c.status === 'ACTIVE') {
+                          <button class="row-act danger" (click)="togglePause(c, 'PAUSED'); actDD.close()" [disabled]="busy() === c.campaignId">Pause campaign</button>
+                        } @else if (c.status === 'PAUSED') {
+                          <button class="row-act success" (click)="togglePause(c, 'ACTIVE'); actDD.close()" [disabled]="busy() === c.campaignId">Resume campaign</button>
+                        }
+                        <button class="row-act" (click)="startRename(c); actDD.close()" [disabled]="busy() === c.campaignId">Rename</button>
+
+                        <div class="row-section">
+                          <label class="row-label">Daily budget (EGP)</label>
+                          <div class="row-input-row">
+                            <input type="number" min="1" step="1" inputmode="decimal" placeholder="e.g. 50"
+                              [value]="inlineDaily()" (input)="inlineDaily.set(asValue($event))"
+                              [disabled]="busy() === c.campaignId" />
+                            <button class="row-act-mini" (click)="commitInlineBudget(c, 'daily', actDD)" [disabled]="busy() === c.campaignId">Save</button>
+                          </div>
+                          <label class="row-label">Lifetime budget (EGP)</label>
+                          <div class="row-input-row">
+                            <input type="number" min="1" step="1" inputmode="decimal" placeholder="e.g. 1000"
+                              [value]="inlineLifetime()" (input)="inlineLifetime.set(asValue($event))"
+                              [disabled]="busy() === c.campaignId" />
+                            <button class="row-act-mini" (click)="commitInlineBudget(c, 'lifetime', actDD)" [disabled]="busy() === c.campaignId">Save</button>
+                          </div>
+                        </div>
+
+                        <button class="row-act" (click)="openDuplicate(c); actDD.close()" [disabled]="busy() === c.campaignId">Duplicate</button>
+                      </div>
+                    </app-dropdown>
                   } @else {
                     <span class="muted">—</span>
                   }
@@ -154,6 +203,54 @@ const VIEWS_KEY = "campaign-views.v1";
         </table>
       }
     </article>
+
+    @if (duplicateTarget(); as target) {
+      <div class="modal-backdrop" (click)="closeDuplicate()">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="duplicate-title" (click)="$event.stopPropagation()">
+          <h2 id="duplicate-title">Duplicate campaign</h2>
+          <p class="muted">
+            Cloning <strong>{{ target.name }}</strong>
+            <br><small>{{ target.accountName }}</small>
+          </p>
+          <p class="hint">
+            Creates a copy of the campaign shell on Facebook. Ad sets and creatives are
+            not copied. Override any field below to differentiate the variant.
+          </p>
+          <div class="field">
+            <label for="d-name">New name</label>
+            <input id="d-name" type="text" maxlength="400"
+              [value]="duplicateName()" (input)="duplicateName.set(asValue($event))"
+              [disabled]="duplicateSaving()" />
+          </div>
+          <div class="field">
+            <label for="d-daily">Daily budget <span class="muted">(optional)</span></label>
+            <input id="d-daily" type="number" min="1" step="1" inputmode="decimal"
+              [value]="duplicateDaily()" (input)="duplicateDaily.set(asValue($event))"
+              [disabled]="duplicateSaving()" placeholder="Leave blank to copy from source" />
+          </div>
+          <div class="field">
+            <label for="d-start">Start date <span class="muted">(optional)</span></label>
+            <input id="d-start" type="date"
+              [value]="duplicateStart()" (input)="duplicateStart.set(asValue($event))"
+              [disabled]="duplicateSaving()" />
+          </div>
+          <label class="check-row">
+            <input type="checkbox"
+              [checked]="duplicateStartPaused()"
+              (change)="duplicateStartPaused.set(asChecked($event))"
+              [disabled]="duplicateSaving()" />
+            <span>Start paused (recommended)</span>
+          </label>
+          @if (duplicateError(); as e) { <div class="banner banner--error">{{ e }}</div> }
+          <div class="actions-row">
+            <button type="button" class="btn-ghost" (click)="closeDuplicate()" [disabled]="duplicateSaving()">Cancel</button>
+            <button type="button" class="btn-primary" (click)="submitDuplicate(target)" [disabled]="duplicateSaving() || !duplicateValid()">
+              {{ duplicateSaving() ? 'Cloning…' : 'Duplicate' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
   `,
   styles: [`
     .card { background: var(--card-bg, #fff); border: 1px solid var(--card-bd, #e2e8f0); border-radius: .75rem; padding: 1rem 1.25rem; overflow-x: auto; }
@@ -169,8 +266,6 @@ const VIEWS_KEY = "campaign-views.v1";
     .metric-toggle { display: flex; background: var(--card-bg, #fff); border: 1px solid var(--card-bd, #e2e8f0); border-radius: .375rem; overflow: hidden; }
     .metric-toggle button { background: transparent; border: 0; padding: .35rem .65rem; cursor: pointer; color: var(--text-muted, #475569); font-size: .8rem; }
     .metric-toggle button.active { background: #4f46e5; color: #fff; }
-    .ghost { background: var(--ghost-bg, #f1f5f9); border: 1px solid var(--card-bd, #e2e8f0); color: var(--text-muted, #475569); border-radius: .375rem; padding: .35rem .75rem; font-size: .8rem; cursor: pointer; }
-    .ghost:hover { background: var(--ghost-hover, #e2e8f0); }
     .more-trigger { font-size: 1.1rem; font-weight: 700; line-height: 1; color: var(--text-muted); padding: 0 .25rem; }
     .more-menu { padding: .25rem; min-width: 12rem; }
     .more-item { display: block; width: 100%; text-align: left; background: transparent; border: 0; padding: .45rem .65rem; border-radius: .375rem; cursor: pointer; color: var(--text); font-size: .85rem; }
@@ -181,13 +276,25 @@ const VIEWS_KEY = "campaign-views.v1";
     .view-x { background: transparent; border: 0; color: #94a3b8; cursor: pointer; padding: 0 .25rem; font-size: 1rem; margin-right: .35rem; }
     .view-x:hover { color: #dc2626; }
     .empty { text-align: center; color: var(--text-muted, #64748b); padding: 2rem 1rem; font-size: .9rem; }
-    table { width: 100%; min-width: 900px; border-collapse: collapse; font-size: .9rem; }
-    th { text-align: left; background: var(--th-bg, #f8fafc); color: var(--text-muted, #475569); font-weight: 500; padding: .5rem .75rem; cursor: pointer; user-select: none; white-space: nowrap; }
+
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; table-layout: auto; }
+    th { text-align: left; background: var(--th-bg, #f8fafc); color: var(--text-muted, #475569); font-weight: 500; padding: .4rem .55rem; cursor: pointer; user-select: none; white-space: nowrap; }
     th.num { text-align: right; }
-    td { padding: .65rem .75rem; border-bottom: 1px solid var(--card-bd, #e2e8f0); white-space: nowrap; color: var(--text, #0f172a); }
-    td.num { text-align: right; font-variant-numeric: tabular-nums; }
-    td.name div { font-weight: 500; color: var(--text, #0f172a); }
-    td.name small { color: var(--muted, #94a3b8); text-transform: capitalize; }
+    td { padding: .45rem .55rem; border-bottom: 1px solid var(--card-bd, #e2e8f0); color: var(--text, #0f172a); }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+    /* Column sizing — keep wide columns elastic, force tight ones to content width */
+    .col-flag { width: 28px; }
+    .col-name { width: 14rem; }
+    td.name { max-width: 14rem; }
+    .name-text { display: block; max-width: 13rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--text, #0f172a); }
+    .col-account { width: 9rem; }
+    td.account-name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted, #475569); font-size: .82rem; }
+    .col-tight { width: 1%; white-space: nowrap; }
+    .col-actions { width: 5.5rem; }
+    td.actions { padding: .35rem .45rem; }
+
+    td.name small { color: var(--muted, #94a3b8); text-transform: capitalize; display: block; font-size: .7rem; }
     .badge { padding: .15rem .5rem; border-radius: 999px; font-size: .7rem; font-weight: 500; text-transform: capitalize; }
     .badge--facebook { background: #dbeafe; color: #1e40af; }
     .badge--tiktok   { background: #fce7f3; color: #9d174d; }
@@ -195,9 +302,8 @@ const VIEWS_KEY = "campaign-views.v1";
     .roas { font-weight: 500; }
     .roas--good { color: #16a34a; }
     .roas--bad  { color: #dc2626; }
-    td.account-name { color: var(--text-muted, #475569); font-size: .85rem; max-width: 12rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    td.created { color: var(--text-muted); font-size: .82rem; font-variant-numeric: tabular-nums; }
-    .flags { padding: .35rem .35rem; min-width: 2.5rem; }
+    td.created { color: var(--text-muted); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .flags { padding: .35rem .35rem; min-width: 1.75rem; }
     .flag { display: inline-block; font-size: .85rem; }
     .flag--stalled { color: #dc2626; }
     .flag--anomaly { color: #f59e0b; }
@@ -206,13 +312,98 @@ const VIEWS_KEY = "campaign-views.v1";
     .row--stalled.row--anomaly td { background: rgba(245, 158, 11, .06); }
     .sparkline { padding: .2rem .5rem; }
     .sparkline svg { display: block; }
-    .actions { padding: .35rem .5rem; }
-    .btn-action { background: transparent; border: 1px solid; border-radius: .375rem; padding: .3rem .65rem; font-size: .75rem; cursor: pointer; font-weight: 500; }
-    .btn-action:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-action.pause { color: #b91c1c; border-color: #fecaca; }
-    .btn-action.pause:hover:not(:disabled) { background: #fef2f2; }
-    .btn-action.resume { color: #15803d; border-color: #bbf7d0; }
-    .btn-action.resume:hover:not(:disabled) { background: #f0fdf4; }
+
+    /* Narrow viewports — drop sparkline + created date before the table can overflow */
+    @media (max-width: 1200px) {
+      th.col-trend, td.col-trend { display: none; }
+      th.col-created, td.col-created { display: none; }
+    }
+
+    .name-trigger {
+      display: inline-block; max-width: 100%;
+      background: transparent; border: 0; padding: 0; cursor: text;
+      font: inherit; color: inherit; text-align: left;
+    }
+    .name-edit {
+      width: 100%; max-width: 22rem;
+      padding: .25rem .45rem; border-radius: .35rem;
+      border: 1px solid var(--accent, #4f46e5); background: var(--card-bg, #fff);
+      color: var(--text, #0f172a); font: inherit; font-weight: 500;
+      outline: none;
+    }
+    .name-edit:disabled { opacity: .6; cursor: progress; }
+
+    /* Per-row Actions dropdown */
+    .actions-trigger-label { font-size: .78rem; font-weight: 500; color: var(--text, #0f172a); }
+    .row-actions-panel { padding: .35rem; min-width: 15rem; display: flex; flex-direction: column; gap: .15rem; }
+    .row-act {
+      display: block; width: 100%; text-align: left;
+      background: transparent; border: 0; padding: .4rem .55rem; border-radius: .35rem;
+      cursor: pointer; color: var(--text, #0f172a); font-size: .82rem;
+    }
+    .row-act:hover:not(:disabled) { background: var(--ghost-bg, #f1f5f9); }
+    .row-act:disabled { opacity: .5; cursor: not-allowed; }
+    .row-act.danger { color: #b91c1c; }
+    .row-act.success { color: #15803d; }
+    .row-section {
+      margin: .35rem 0; padding: .4rem .55rem;
+      border-top: 1px solid var(--card-bd, #e2e8f0);
+      border-bottom: 1px solid var(--card-bd, #e2e8f0);
+      display: flex; flex-direction: column; gap: .25rem;
+    }
+    .row-label { font-size: .72rem; color: var(--text-muted, #64748b); font-weight: 500; }
+    .row-input-row { display: flex; gap: .35rem; align-items: center; margin-bottom: .25rem; }
+    .row-input-row input {
+      flex: 1; min-width: 0;
+      padding: .3rem .45rem; border: 1px solid var(--card-bd, #cbd5e1); border-radius: .35rem;
+      background: var(--card-bg, #fff); color: var(--text, #0f172a); font-size: .8rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .row-input-row input:focus { outline: 2px solid var(--accent, #4f46e5); outline-offset: 1px; }
+    .row-act-mini {
+      background: #4f46e5; color: #fff; border: 0; border-radius: .35rem;
+      padding: .3rem .65rem; font-size: .75rem; cursor: pointer; font-weight: 500;
+    }
+    .row-act-mini:hover:not(:disabled) { background: #4338ca; }
+    .row-act-mini:disabled { opacity: .55; cursor: not-allowed; }
+
+    .check-row { display: flex; align-items: center; gap: .5rem; font-size: .85rem; color: var(--text, #0f172a); cursor: pointer; }
+
+    /* Duplicate modal — kept (overrides + Start paused don't fit inline) */
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(15, 23, 42, .55);
+      display: flex; align-items: center; justify-content: center; z-index: 50;
+      backdrop-filter: blur(2px);
+    }
+    .modal {
+      background: var(--card-bg, #fff); border: 1px solid var(--card-bd, #e2e8f0);
+      border-radius: .75rem; padding: 1.25rem 1.4rem; width: min(420px, 92vw);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, .25);
+      display: flex; flex-direction: column; gap: .9rem;
+    }
+    .modal h2 { margin: 0; font-size: 1.05rem; color: var(--text, #0f172a); }
+    .modal p.muted { margin: 0; color: var(--text-muted, #475569); font-size: .9rem; }
+    .modal p.hint { margin: 0; font-size: .78rem; color: var(--text-muted, #64748b); line-height: 1.45; }
+    .field { display: flex; flex-direction: column; gap: .35rem; }
+    .field label { font-size: .78rem; color: var(--text-muted, #475569); font-weight: 500; }
+    .field input {
+      padding: .5rem .65rem; border: 1px solid var(--input-bd, #cbd5e1); border-radius: .4rem;
+      background: var(--card-bg, #fff); color: var(--text, #0f172a); font-size: .9rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .field input:focus { outline: 2px solid var(--accent, #4f46e5); outline-offset: 1px; }
+    .banner { padding: .5rem .65rem; border-radius: .4rem; font-size: .82rem; }
+    .banner--error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+    .actions-row { display: flex; gap: .5rem; justify-content: flex-end; margin-top: .25rem; }
+    .btn-ghost, .btn-primary {
+      padding: .45rem .85rem; border-radius: .4rem; font-size: .85rem;
+      cursor: pointer; border: 1px solid transparent;
+    }
+    .btn-ghost { background: transparent; color: var(--text, #0f172a); border-color: var(--card-bd, #cbd5e1); }
+    .btn-ghost:hover:not(:disabled) { background: var(--ghost-bg, #f1f5f9); }
+    .btn-primary { background: #4f46e5; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #4338ca; }
+    .btn-primary:disabled, .btn-ghost:disabled { opacity: .55; cursor: not-allowed; }
   `],
 })
 export class CampaignTableComponent {
@@ -248,7 +439,6 @@ export class CampaignTableComponent {
     list.sort((a, b) => {
       const va = a[key as keyof CampaignAggregate];
       const vb = b[key as keyof CampaignAggregate];
-      // Null/undefined always sinks to the bottom regardless of direction.
       if (va == null && vb == null) return 0;
       if (va == null) return 1;
       if (vb == null) return -1;
@@ -263,19 +453,14 @@ export class CampaignTableComponent {
       this.sortDir.update((d) => (d === "asc" ? "desc" : "asc"));
     } else {
       this.sortKey.set(key);
-      // Strings sort A→Z by default; numbers and dates sort biggest/newest first.
       this.sortDir.set(key === "name" || key === "accountName" || key === "platform" ? "asc" : "desc");
     }
   }
 
   /**
-   * Generate a tiny SVG sparkline from a numeric series.
-   *
-   * The input is `number[]` only (from the typed CampaignAggregate model), so
-   * there is no untrusted-string path into the markup. We still wrap the
-   * result in `bypassSecurityTrustHtml` to make the trust boundary explicit:
-   * Angular's default sanitizer can rewrite SVG attributes (e.g. drop `xmlns`)
-   * and this keeps the rendered chart byte-for-byte what we generated.
+   * SVG sparkline. Input is `number[]` from the typed model, so no untrusted
+   * string path; bypassSecurityTrustHtml is used so Angular doesn't strip
+   * `xmlns` and other SVG attributes we generated.
    */
   sparkline(series: number[]): SafeHtml {
     if (!series || series.length < 2) {
@@ -307,6 +492,132 @@ export class CampaignTableComponent {
       this.status.error(`Failed to ${status === "PAUSED" ? "pause" : "resume"} campaign`);
     } finally {
       this.busy.set(null);
+    }
+  }
+
+  /** Inline-rename state. `renamingId` is the campaignId currently being edited (or null). */
+  readonly renamingId = signal<string | null>(null);
+  readonly renameDraft = signal<string>("");
+  readonly renameSaving = signal(false);
+
+  asValue(e: Event): string { return (e.target as HTMLInputElement).value; }
+
+  startRename(c: CampaignAggregate): void {
+    if (this.renameSaving()) return;
+    this.renameDraft.set(c.name);
+    this.renamingId.set(c.campaignId);
+  }
+
+  cancelRename(): void {
+    if (this.renameSaving()) return;
+    this.renamingId.set(null);
+    this.renameDraft.set("");
+  }
+
+  async commitRename(c: CampaignAggregate): Promise<void> {
+    if (this.renameSaving() || this.renamingId() !== c.campaignId) return;
+    const next = this.renameDraft().trim();
+    if (next.length === 0 || next === c.name) {
+      this.cancelRename();
+      return;
+    }
+    this.renameSaving.set(true);
+    try {
+      await this.dash.renameCampaign(c.campaignId, next);
+      this.status.success("Campaign renamed");
+      this.changed.emit();
+    } catch {
+      this.status.error("Failed to rename campaign");
+    } finally {
+      this.renameSaving.set(false);
+      this.renamingId.set(null);
+      this.renameDraft.set("");
+    }
+  }
+
+  /** Inline budget editors live inside the per-row Actions dropdown. */
+  readonly inlineDaily = signal<string>("");
+  readonly inlineLifetime = signal<string>("");
+
+  async commitInlineBudget(c: CampaignAggregate, which: "daily" | "lifetime", dd?: DropdownComponent): Promise<void> {
+    const raw = (which === "daily" ? this.inlineDaily() : this.inlineLifetime()).trim();
+    const n = Number(raw);
+    if (!raw || !(n >= 1)) {
+      this.status.error("Budget must be ≥ 1");
+      return;
+    }
+    const payload = which === "daily" ? { dailyBudget: n } : { lifetimeBudget: n };
+    this.busy.set(c.campaignId);
+    try {
+      await this.dash.updateCampaignBudget(c.campaignId, payload);
+      this.status.success("Budget updated");
+      if (which === "daily") this.inlineDaily.set(""); else this.inlineLifetime.set("");
+      this.changed.emit();
+      dd?.close();
+    } catch (err) {
+      const msg = (err as { error?: { message?: string } })?.error?.message;
+      this.status.error(msg ?? "Failed to update budget");
+    } finally {
+      this.busy.set(null);
+    }
+  }
+
+  asChecked(e: Event): boolean { return (e.target as HTMLInputElement).checked; }
+
+  /** Duplicate-modal state. Defaults to startPaused=true for safety. */
+  readonly duplicateTarget = signal<CampaignAggregate | null>(null);
+  readonly duplicateName = signal<string>("");
+  readonly duplicateDaily = signal<string>("");
+  readonly duplicateStart = signal<string>("");
+  readonly duplicateStartPaused = signal<boolean>(true);
+  readonly duplicateSaving = signal(false);
+  readonly duplicateError = signal<string | null>(null);
+
+  readonly duplicateValid = computed(() => {
+    if (this.duplicateName().trim().length === 0) return false;
+    const d = this.duplicateDaily().trim();
+    if (d && !(Number(d) >= 1)) return false;
+    return true;
+  });
+
+  openDuplicate(c: CampaignAggregate): void {
+    this.duplicateTarget.set(c);
+    this.duplicateName.set(`${c.name} — copy`);
+    this.duplicateDaily.set("");
+    this.duplicateStart.set("");
+    this.duplicateStartPaused.set(true);
+    this.duplicateError.set(null);
+  }
+
+  closeDuplicate(): void {
+    if (this.duplicateSaving()) return;
+    this.duplicateTarget.set(null);
+    this.duplicateError.set(null);
+  }
+
+  async submitDuplicate(c: CampaignAggregate): Promise<void> {
+    if (!this.duplicateValid()) return;
+    const payload: Parameters<DashboardService["duplicateCampaign"]>[1] = {
+      name: this.duplicateName().trim(),
+      startPaused: this.duplicateStartPaused(),
+    };
+    const daily = this.duplicateDaily().trim();
+    if (daily) payload.dailyBudget = Number(daily);
+    const start = this.duplicateStart().trim();
+    if (start) payload.startTime = start;
+
+    this.duplicateSaving.set(true);
+    this.duplicateError.set(null);
+    try {
+      const created = await this.dash.duplicateCampaign(c.campaignId, payload);
+      this.status.success(`Cloned: ${created.name}`);
+      this.changed.emit();
+      this.duplicateTarget.set(null);
+    } catch (err: unknown) {
+      const msg = (err as { error?: { message?: string } })?.error?.message;
+      this.duplicateError.set(msg ?? "Failed to duplicate campaign.");
+    } finally {
+      this.duplicateSaving.set(false);
     }
   }
 

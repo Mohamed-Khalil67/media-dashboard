@@ -6,6 +6,10 @@ import {
   getTimeseries,
   getShopifyOverview,
   getShopifyTimeseries,
+  getShopifyOrdersList,
+  getShopifyOrderDetail,
+  getShopifyTopProducts,
+  getShopifyTopCustomers,
 } from "./metrics.service";
 
 const router = Router();
@@ -58,6 +62,61 @@ router.get("/shopify/overview", async (req, res: Response) => {
 router.get("/shopify/timeseries", async (req, res: Response) => {
   const workspaceId = (req as AuthedRequest).workspaceId;
   res.json({ points: await getShopifyTimeseries(workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req)) });
+});
+
+const ALLOWED_FINANCIAL_STATUSES = ["paid", "pending", "refunded", "partially_refunded", "voided", "authorized"] as const;
+
+router.get("/shopify/orders", async (req, res: Response) => {
+  const workspaceId = (req as AuthedRequest).workspaceId;
+  const limit = Math.min(Math.max(Number(req.query.limit ?? 50) || 50, 1), 200);
+  const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : undefined;
+  const statusRaw = typeof req.query.status === "string" ? req.query.status : undefined;
+  const financialStatus = statusRaw && (ALLOWED_FINANCIAL_STATUSES as readonly string[]).includes(statusRaw)
+    ? statusRaw
+    : undefined;
+
+  res.json(await getShopifyOrdersList(workspaceId, {
+    connectionId: connId(req),
+    financialStatus,
+    q: q || undefined,
+    limit,
+    cursor,
+  }));
+});
+
+router.get("/shopify/orders/:id", async (req: Request, res: Response) => {
+  const workspaceId = (req as AuthedRequest).workspaceId;
+  const id = String(req.params.id);
+  const row = await getShopifyOrderDetail(workspaceId, id);
+  if (!row) return res.status(404).json({ error: "Order not found" });
+  res.json(row);
+});
+
+function topLimit(req: Request): number {
+  const n = Number(req.query.limit ?? 10);
+  if (!Number.isFinite(n)) return 10;
+  return Math.min(Math.max(Math.round(n), 1), 50);
+}
+
+router.get("/shopify/top-products", async (req, res: Response) => {
+  const workspaceId = (req as AuthedRequest).workspaceId;
+  res.json({
+    products: await getShopifyTopProducts(
+      workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"),
+      connId(req), topLimit(req),
+    ),
+  });
+});
+
+router.get("/shopify/top-customers", async (req, res: Response) => {
+  const workspaceId = (req as AuthedRequest).workspaceId;
+  res.json({
+    customers: await getShopifyTopCustomers(
+      workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"),
+      connId(req), topLimit(req),
+    ),
+  });
 });
 
 export default router;

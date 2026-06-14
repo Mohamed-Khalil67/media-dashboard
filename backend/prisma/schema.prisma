@@ -176,11 +176,22 @@ model ShopifyOrder {
   externalId   String
   totalPrice   Float
   createdAt    DateTime
+  // Denormalized projections of fields we already have inside `raw`. Stored as
+  // columns so the orders list view can paginate + filter without parsing JSON
+  // for every row. Populated at sync time; backfill script handles existing rows.
+  customerEmail     String?
+  lineItemsCount    Int     @default(0)
+  financialStatus   String? // paid | pending | refunded | voided | partially_refunded | …
+  fulfillmentStatus String? // fulfilled | partial | unfulfilled | restocked
+  currency          String? // ISO 4217, e.g. "USD" — order may pre-date the field
+  orderNumber       String? // Shopify's human-readable "#1023" identifier
   raw          Json?
 
   @@unique([connectionId, externalId])
   @@index([connectionId])
   @@index([createdAt])
+  @@index([connectionId, createdAt(sort: Desc)])
+  @@index([customerEmail])
 }
 
 model AlertRule {

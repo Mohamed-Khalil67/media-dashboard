@@ -386,3 +386,231 @@ export async function getShopifyTimeseries(workspaceId: string, range: string, s
     date, revenue: round(b.revenue), orders: b.orders,
   }));
 }
+
+export interface ShopifyOrderListItem {
+  id: string;
+  externalId: string;
+  orderNumber: string | null;
+  customerEmail: string | null;
+  totalPrice: number;
+  currency: string | null;
+  financialStatus: string | null;
+  fulfillmentStatus: string | null;
+  lineItemsCount: number;
+  createdAt: string;
+}
+
+export interface ShopifyOrderListResult {
+  orders: ShopifyOrderListItem[];
+  nextCursor: string | null;
+}
+
+/**
+ * Paginated, filterable orders list. Used by the Shopify orders page.
+ *
+ * Pagination is cursor-based on (createdAt DESC, id DESC) so newest orders
+ * come first. Pass the previous response's `nextCursor` back as `cursor` to
+ * fetch the next page; null `nextCursor` means there are no more orders.
+ */
+export async function getShopifyOrdersList(
+  workspaceId: string,
+  opts: {
+    connectionId?: string;
+    financialStatus?: string;
+    q?: string; // matches customerEmail OR externalId OR orderNumber
+    limit?: number;
+    cursor?: string; // opaque `${ISO}|${id}` token
+  } = {},
+): Promise<ShopifyOrderListResult> {
+  const take = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+
+  // Cursor decoding: encoded as "ISO|id". Anything malformed → ignore (no cursor).
+  let cursorCreatedAt: Date | undefined;
+  let cursorId: string | undefined;
+  if (opts.cursor && typeof opts.cursor === "string") {
+    const sep = opts.cursor.indexOf("|");
+    if (sep > 0) {
+      const t = new Date(opts.cursor.slice(0, sep));
+      if (Number.isFinite(t.getTime())) {
+        cursorCreatedAt = t;
+        cursorId = opts.cursor.slice(sep + 1);
+      }
+    }
+  }
+
+  // (createdAt < cursor.createdAt) OR (createdAt = cursor.createdAt AND id < cursor.id)
+  // — i.e. strictly older than the cursor row in descending order.
+  const cursorWhere = cursorCreatedAt && cursorId
+    ? {
+        OR: [
+          { createdAt: { lt: cursorCreatedAt } },
+          { createdAt: cursorCreatedAt, id: { lt: cursorId } },
+        ],
+      }
+    : {};
+
+  const qWhere = opts.q
+    ? {
+        OR: [
+          { customerEmail: { contains: opts.q, mode: "insensitive" as const } },
+          { externalId: { contains: opts.q, mode: "insensitive" as const } },
+          { orderNumber: { contains: opts.q, mode: "insensitive" as const } },
+        ],
+      }
+    : {};
+
+  const rows = await prisma.shopifyOrder.findMany({
+    where: {
+      connection: opts.connectionId ? { workspaceId, id: opts.connectionId } : { workspaceId },
+      ...(opts.financialStatus ? { financialStatus: opts.financialStatus } : {}),
+      ...qWhere,
+      ...cursorWhere,
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: take + 1, // probe for next page
+    select: {
+      id: true,
+      externalId: true,
+      orderNumber: true,
+      customerEmail: true,
+      totalPrice: true,
+      currency: true,
+      financialStatus: true,
+      fulfillmentStatus: true,
+      lineItemsCount: true,
+      createdAt: true,
+    },
+  });
+
+  const hasMore = rows.length > take;
+  const slice = hasMore ? rows.slice(0, take) : rows;
+  const last = slice.at(-1);
+  const nextCursor = hasMore && last
+    ? `${last.createdAt.toISOString()}|${last.id}`
+    : null;
+
+  return {
+    orders: slice.map((r) => ({
+      id: r.id,
+      externalId: r.externalId,
+      orderNumber: r.orderNumber,
+      customerEmail: r.customerEmail,
+      totalPrice: round(r.totalPrice),
+      currency: r.currency,
+      financialStatus: r.financialStatus,
+      fulfillmentStatus: r.fulfillmentStatus,
+      lineItemsCount: r.lineItemsCount,
+      createdAt: r.createdAt.toISOString(),
+    })),
+    nextCursor,
+  };
+}
+
+/**
+ * Fetch a single order's full details (the raw payload). Used by the orders
+ * page drawer for line-items, addresses, notes.
+ */
+export async function getShopifyOrderDetail(
+  workspaceId: string,
+  orderId: string,
+): Promise<{ id: string; raw: unknown } | null> {
+  const row = await prisma.shopifyOrder.findFirst({
+    where: { id: orderId, connection: { workspaceId } },
+    select: { id: true, raw: true },
+  });
+  return row ?? null;
+}
+
+export interface TopProductRow {
+  title: string;
+  sku: string | null;
+  units: number;
+  revenue: number;
+}
+
+/**
+ * Top products by revenue within the given range. Reads from ShopifyOrder.raw
+ * — line items are not denormalized, so this iterates orders in-memory. Cheap
+ * up to a few thousand orders per range; for higher volume we'd materialize a
+ * separate ShopifyOrderLineItem table.
+ */
+export async function getShopifyTopProducts(
+  workspaceId: string,
+  range: string,
+  sinceISO?: string,
+  untilISO?: string,
+  connectionId?: string,
+  limit = 10,
+): Promise<TopProductRow[]> {
+  const { since, until: now } = resolveWindow(range, sinceISO, untilISO);
+  const orders = await prisma.shopifyOrder.findMany({
+    where: {
+      createdAt: { gte: since, lt: now },
+      connection: connectionId ? { workspaceId, id: connectionId } : { workspaceId },
+    },
+    select: { raw: true },
+  });
+
+  const agg = new Map<string, TopProductRow>();
+  for (const o of orders) {
+    const raw = (o.raw ?? {}) as { line_items?: Array<{ title?: string; sku?: string; quantity?: number; price?: string }> };
+    for (const li of raw.line_items ?? []) {
+      const title = li.title?.trim() || li.sku || "Unknown item";
+      const key = li.sku?.trim() || title; // dedupe by SKU when present, else by title
+      const qty = typeof li.quantity === "number" ? li.quantity : 0;
+      const price = typeof li.price === "string" ? Number(li.price) : 0;
+      const line = qty * (Number.isFinite(price) ? price : 0);
+      const existing = agg.get(key);
+      if (existing) {
+        existing.units += qty;
+        existing.revenue += line;
+      } else {
+        agg.set(key, { title, sku: li.sku ?? null, units: qty, revenue: line });
+      }
+    }
+  }
+
+  return Array.from(agg.values())
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, Math.min(Math.max(limit, 1), 50))
+    .map((r) => ({ ...r, revenue: round(r.revenue) }));
+}
+
+export interface TopCustomerRow {
+  email: string;
+  orders: number;
+  revenue: number;
+}
+
+/**
+ * Top customers by spend within the range. Uses the denormalized
+ * `customerEmail` column for the aggregate so no JSON parsing is needed.
+ */
+export async function getShopifyTopCustomers(
+  workspaceId: string,
+  range: string,
+  sinceISO?: string,
+  untilISO?: string,
+  connectionId?: string,
+  limit = 10,
+): Promise<TopCustomerRow[]> {
+  const { since, until: now } = resolveWindow(range, sinceISO, untilISO);
+  const grouped = await prisma.shopifyOrder.groupBy({
+    by: ["customerEmail"],
+    where: {
+      createdAt: { gte: since, lt: now },
+      connection: connectionId ? { workspaceId, id: connectionId } : { workspaceId },
+      customerEmail: { not: null },
+    },
+    _count: { _all: true },
+    _sum: { totalPrice: true },
+    orderBy: { _sum: { totalPrice: "desc" } },
+    take: Math.min(Math.max(limit, 1), 50),
+  });
+
+  return grouped.map((g) => ({
+    email: g.customerEmail ?? "",
+    orders: g._count._all,
+    revenue: round(g._sum.totalPrice ?? 0),
+  }));
+}

@@ -30,6 +30,11 @@ export const routes: Routes = [
           import("./features/dashboard/shopify-dashboard.component").then((m) => m.ShopifyDashboardComponent),
       },
       {
+        path: "dashboard/shopify/orders",
+        loadComponent: () =>
+          import("./features/dashboard/shopify-orders.component").then((m) => m.ShopifyOrdersComponent),
+      },
+      {
         path: "dashboard/:platform",
         loadComponent: () =>
           import("./features/dashboard/dashboard.component").then((m) => m.DashboardComponent),

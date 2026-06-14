@@ -1,27 +1,39 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from "@angular/core";
 import { RouterLink } from "@angular/router";
+import { CurrencyPipe } from "@angular/common";
 import { NgApexchartsModule, ApexOptions } from "ng-apexcharts";
 import { AuthService } from "../../core/auth.service";
 import { ConnectionsService } from "../../core/connections.service";
 import { DashboardService } from "../../core/dashboard.service";
 import { StatusBarService } from "../../core/status-bar.service";
 import { ThemeService } from "../../core/theme.service";
-import { Range, ShopifyDailyPoint, ShopifyOverview } from "../../core/models/metrics.models";
+import {
+  Range,
+  ShopifyDailyPoint,
+  ShopifyOverview,
+  ShopifyTopProduct,
+  ShopifyTopCustomer,
+} from "../../core/models/metrics.models";
 import { Connection } from "../../core/models/connection.models";
 import { KpiCardComponent } from "./components/kpi-card.component";
+import { RefreshBarComponent } from "./components/refresh-bar.component";
+import { RangeSelectorComponent } from "./components/range-selector.component";
 import { DropdownComponent } from "../../shared/dropdown.component";
 import { DashboardTabsComponent } from "./dashboard-tabs.component";
+import { ShopifySubtabsComponent } from "./shopify-subtabs.component";
 
 
 @Component({
   selector: "app-shopify-dashboard",
   imports: [
-    RouterLink, NgApexchartsModule,
-    KpiCardComponent, DropdownComponent, DashboardTabsComponent,
+    RouterLink, CurrencyPipe, NgApexchartsModule,
+    KpiCardComponent, RefreshBarComponent, RangeSelectorComponent, DropdownComponent,
+    DashboardTabsComponent, ShopifySubtabsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-dashboard-tabs />
+    <app-shopify-subtabs />
 
     <header class="page-head">
       <div>
@@ -29,31 +41,17 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
         <p class="muted">Real orders + revenue, separate from ad-attributed numbers.</p>
       </div>
       <div class="actions">
-        <app-dropdown #dateDD>
-          <span trigger>
-            <span class="ico">📅</span>
-            <span class="lbl">{{ dateLabel() }}</span>
-          </span>
-          <div menu class="date-menu">
-            <div class="presets">
-              @for (p of presets; track p.value) {
-                <button
-                  class="preset"
-                  [class.active]="!customMode() && range() === p.value"
-                  (click)="pickPreset(p.value); dateDD.close()">{{ p.label }}</button>
-              }
-            </div>
-            <div class="custom-zone">
-              <p class="muted">Custom range</p>
-              <div class="dates">
-                <input type="date" [value]="customSince()" (change)="customSince.set($any($event.target).value)" />
-                <span>→</span>
-                <input type="date" [value]="customUntil()" (change)="customUntil.set($any($event.target).value)" />
-              </div>
-              <button class="apply" (click)="applyCustom(); dateDD.close()">Apply</button>
-            </div>
-          </div>
-        </app-dropdown>
+        <app-refresh-bar [lastUpdated]="lastUpdated()" [refreshing]="refreshing()" (refresh)="reload()" />
+
+        <app-range-selector
+          [range]="range()"
+          [customMode]="customMode()"
+          [customSince]="customSince()"
+          [customUntil]="customUntil()"
+          (pickPreset)="pickPreset($event)"
+          (updateCustomSince)="customSince.set($event)"
+          (updateCustomUntil)="customUntil.set($event)"
+          (applyCustom)="applyCustomFromShared($event)" />
 
         @if (shopifyConns().length > 0) {
           <app-dropdown #shopDD>
@@ -129,6 +127,50 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
           />
         }
       </section>
+
+      <div class="two-col">
+        <section class="card list-card">
+          <header class="card-head">
+            <h3>Top products</h3>
+            <p class="muted">By revenue</p>
+          </header>
+          @if (topProducts().length === 0) {
+            <div class="empty-small">No products sold in this period.</div>
+          } @else {
+            <ol class="rank-list">
+              @for (p of topProducts(); track p.title; let i = $index) {
+                <li>
+                  <span class="rank">{{ i + 1 }}</span>
+                  <span class="rank-title" [title]="p.sku ?? ''">{{ p.title }}</span>
+                  <span class="rank-meta">{{ p.units }} units</span>
+                  <span class="rank-num"><strong>{{ p.revenue | currency: "USD":"symbol":"1.0-0" }}</strong></span>
+                </li>
+              }
+            </ol>
+          }
+        </section>
+
+        <section class="card list-card">
+          <header class="card-head">
+            <h3>Top customers</h3>
+            <p class="muted">By spend</p>
+          </header>
+          @if (topCustomers().length === 0) {
+            <div class="empty-small">No customers yet in this period.</div>
+          } @else {
+            <ol class="rank-list">
+              @for (c of topCustomers(); track c.email; let i = $index) {
+                <li>
+                  <span class="rank">{{ i + 1 }}</span>
+                  <span class="rank-title">{{ c.email }}</span>
+                  <span class="rank-meta">{{ c.orders }} {{ c.orders === 1 ? "order" : "orders" }}</span>
+                  <span class="rank-num"><strong>{{ c.revenue | currency: "USD":"symbol":"1.0-0" }}</strong></span>
+                </li>
+              }
+            </ol>
+          }
+        </section>
+      </div>
     }
   `,
   styles: [`
@@ -141,18 +183,6 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
     .sync { background: #16a34a; color: #fff; border: 0; padding: .5rem 1rem; border-radius: .5rem; cursor: pointer; font-weight: 500; font-size: .85rem; }
     .sync:hover:not(:disabled) { background: #15803d; }
     .sync:disabled { opacity: .55; cursor: not-allowed; }
-
-    .date-menu { padding: 0; min-width: 18rem; }
-    .presets { display: flex; flex-direction: column; padding: .25rem; }
-    .preset { background: transparent; border: 0; padding: .5rem .75rem; border-radius: .375rem; cursor: pointer; text-align: left; color: var(--text); font-size: .85rem; }
-    .preset:hover { background: var(--ghost-bg); }
-    .preset.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
-    .custom-zone { border-top: 1px solid var(--card-bd); padding: .65rem .75rem .75rem; }
-    .custom-zone p { font-size: .75rem; margin: 0 0 .35rem; text-transform: uppercase; letter-spacing: .04em; }
-    .dates { display: flex; align-items: center; gap: .35rem; margin-bottom: .5rem; }
-    .dates input { flex: 1; border: 1px solid var(--input-bd); border-radius: .375rem; padding: .35rem .5rem; background: var(--card-bg); color: var(--text); font-size: .85rem; outline: none; }
-    .dates span { color: var(--muted); }
-    .apply { width: 100%; background: #16a34a; color: #fff; border: 0; padding: .4rem; border-radius: .375rem; cursor: pointer; font-size: .85rem; font-weight: 500; }
 
     .acct-menu { padding: .25rem; min-width: 18rem; }
     .acct-item { width: 100%; display: flex; justify-content: space-between; align-items: center; background: transparent; border: 0; padding: .45rem .55rem; border-radius: .375rem; cursor: pointer; color: var(--text); font-size: .85rem; text-align: left; }
@@ -173,6 +203,23 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
     .primary-link:hover { text-decoration: underline; }
     .skeleton-card { height: 7.5rem; background: var(--card-bg); border-radius: .75rem; border: 1px solid var(--card-bd); background-image: linear-gradient(90deg, var(--card-bg) 0%, var(--ghost-bg) 50%, var(--card-bg) 100%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
     @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+    .list-card { padding: 1.1rem 1.25rem; }
+    .rank-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .4rem; }
+    .rank-list li {
+      display: grid;
+      grid-template-columns: 1.4rem 1fr auto auto;
+      gap: .65rem; align-items: baseline;
+      padding: .5rem .15rem;
+      border-bottom: 1px solid var(--card-bd);
+    }
+    .rank-list li:last-child { border-bottom: 0; }
+    .rank { color: var(--text-muted); font-size: .8rem; font-variant-numeric: tabular-nums; text-align: right; }
+    .rank-title { color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank-meta { color: var(--text-muted); font-size: .78rem; }
+    .rank-num { font-variant-numeric: tabular-nums; color: var(--text); }
   `],
 })
 export class ShopifyDashboardComponent implements OnInit, OnDestroy {
@@ -182,28 +229,22 @@ export class ShopifyDashboardComponent implements OnInit, OnDestroy {
   private readonly status = inject(StatusBarService);
   private readonly theme = inject(ThemeService);
 
-  readonly presets: { value: Range; label: string }[] = [
-    { value: "7d",  label: "Last 7 days" },
-    { value: "14d", label: "Last 14 days" },
-    { value: "30d", label: "Last 30 days" },
-  ];
   readonly range = signal<Range>("7d");
   readonly customMode = signal(false);
   readonly customSince = signal(this.daysAgoISO(7));
   readonly customUntil = signal(this.todayISO());
   readonly loading = signal(false);
+  readonly refreshing = signal(false);
+  readonly lastUpdated = signal<Date | null>(null);
   readonly syncing = signal(false);
   readonly kpis = signal<ShopifyOverview | null>(null);
   readonly points = signal<ShopifyDailyPoint[]>([]);
+  readonly topProducts = signal<ShopifyTopProduct[]>([]);
+  readonly topCustomers = signal<ShopifyTopCustomer[]>([]);
   readonly connections = signal<Connection[]>([]);
   readonly selectedConn = signal<string | null>(null);
 
   readonly shopifyConns = computed(() => this.connections().filter((c) => c.platform === "shopify"));
-
-  readonly dateLabel = computed(() => {
-    if (this.customMode()) return `${this.customSince()} → ${this.customUntil()}`;
-    return this.presets.find((p) => p.value === this.range())?.label ?? this.range();
-  });
 
   readonly shopLabel = computed(() => {
     const id = this.selectedConn();
@@ -261,7 +302,10 @@ export class ShopifyDashboardComponent implements OnInit, OnDestroy {
     this.range.set(r);
     this.reload();
   }
-  applyCustom(): void {
+
+  applyCustomFromShared(ev: { since: string; until: string }): void {
+    this.customSince.set(ev.since);
+    this.customUntil.set(ev.until);
     this.customMode.set(true);
     this.reload();
   }
@@ -275,20 +319,29 @@ export class ShopifyDashboardComponent implements OnInit, OnDestroy {
   }
 
   async reload(): Promise<void> {
-    this.loading.set(true);
+    // First load shows skeletons; subsequent refreshes only toggle the bar
+    // pill so the chart and KPIs don't flash empty on every reload.
+    if (this.lastUpdated() === null) this.loading.set(true);
+    this.refreshing.set(true);
     try {
       const r = this.range();
       const opts = this.queryOpts();
-      const [kpis, points] = await Promise.all([
+      const [kpis, points, top, customers] = await Promise.all([
         this.api.getShopifyOverview(r, opts),
         this.api.getShopifyTimeseries(r, opts),
+        this.api.getShopifyTopProducts(r, opts),
+        this.api.getShopifyTopCustomers(r, opts),
       ]);
       this.kpis.set(kpis);
       this.points.set(points);
+      this.topProducts.set(top);
+      this.topCustomers.set(customers);
+      this.lastUpdated.set(new Date());
     } catch {
       this.status.error("Could not load Shopify data");
     } finally {
       this.loading.set(false);
+      this.refreshing.set(false);
     }
   }
 

@@ -79,3 +79,39 @@ export interface ShopifyDailyPoint {
 export interface ShopifyTimeseriesResponse {
   points: ShopifyDailyPoint[];
 }
+
+export interface ShopifyOrderListItem {
+  id: string;
+  externalId: string;
+  orderNumber: string | null;
+  customerEmail: string | null;
+  totalPrice: number;
+  currency: string | null;
+  financialStatus: string | null;
+  fulfillmentStatus: string | null;
+  lineItemsCount: number;
+  createdAt: string;
+}
+
+export interface ShopifyOrdersListResponse {
+  orders: ShopifyOrderListItem[];
+  nextCursor: string | null;
+}
+
+export interface ShopifyOrderDetail {
+  id: string;
+  raw: unknown;
+}
+
+export interface ShopifyTopProduct {
+  title: string;
+  sku: string | null;
+  units: number;
+  revenue: number;
+}
+
+export interface ShopifyTopCustomer {
+  email: string;
+  orders: number;
+  revenue: number;
+}

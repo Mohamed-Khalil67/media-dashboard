@@ -8,6 +8,10 @@ const mocks = vi.hoisted(() => ({
   getCampaignAggregates: vi.fn(),
   getShopifyOverview: vi.fn(),
   getShopifyTimeseries: vi.fn(),
+  getShopifyOrdersList: vi.fn(),
+  getShopifyOrderDetail: vi.fn(),
+  getShopifyTopProducts: vi.fn(),
+  getShopifyTopCustomers: vi.fn(),
   callerWorkspaceId: "ws_caller",
 }));
 
@@ -28,6 +32,10 @@ vi.mock("./metrics.service", () => ({
   getCampaignAggregates: mocks.getCampaignAggregates,
   getShopifyOverview: mocks.getShopifyOverview,
   getShopifyTimeseries: mocks.getShopifyTimeseries,
+  getShopifyOrdersList: mocks.getShopifyOrdersList,
+  getShopifyOrderDetail: mocks.getShopifyOrderDetail,
+  getShopifyTopProducts: mocks.getShopifyTopProducts,
+  getShopifyTopCustomers: mocks.getShopifyTopCustomers,
 }));
 
 import metricsRoutes from "./metrics.routes";
@@ -47,6 +55,10 @@ beforeEach(() => {
   mocks.getCampaignAggregates.mockResolvedValue([]);
   mocks.getShopifyOverview.mockResolvedValue({ orders: 0, revenue: 0 });
   mocks.getShopifyTimeseries.mockResolvedValue([]);
+  mocks.getShopifyOrdersList.mockResolvedValue({ orders: [], nextCursor: null });
+  mocks.getShopifyOrderDetail.mockResolvedValue({ id: "o_1", raw: {} });
+  mocks.getShopifyTopProducts.mockResolvedValue([]);
+  mocks.getShopifyTopCustomers.mockResolvedValue([]);
 });
 
 describe("range parsing", () => {
@@ -137,5 +149,117 @@ describe("per-route smoke checks", () => {
     expect(res.status).toBe(200);
     expect(res.body.points).toEqual([]);
     expect(mocks.getShopifyTimeseries).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("GET /shopify/orders", () => {
+  it("forwards default pagination (limit=50, no cursor)", async () => {
+    await request(makeApp()).get("/api/metrics/shopify/orders");
+    const args = mocks.getShopifyOrdersList.mock.calls.at(-1)!;
+    expect(args[0]).toBe("ws_caller");
+    expect(args[1]).toMatchObject({ limit: 50, cursor: undefined, financialStatus: undefined });
+  });
+
+  it("caps the limit at 200 even when a larger value is requested", async () => {
+    await request(makeApp()).get("/api/metrics/shopify/orders?limit=9999");
+    expect(mocks.getShopifyOrdersList.mock.calls.at(-1)![1].limit).toBe(200);
+  });
+
+  it("falls back to 50 when limit is non-numeric (no NaN leak)", async () => {
+    await request(makeApp()).get("/api/metrics/shopify/orders?limit=banana");
+    expect(mocks.getShopifyOrdersList.mock.calls.at(-1)![1].limit).toBe(50);
+  });
+
+  it("accepts a valid financial status and drops invalid ones", async () => {
+    await request(makeApp()).get("/api/metrics/shopify/orders?status=paid");
+    expect(mocks.getShopifyOrdersList.mock.calls.at(-1)![1].financialStatus).toBe("paid");
+
+    await request(makeApp()).get("/api/metrics/shopify/orders?status=cancelled-no-such-thing");
+    expect(mocks.getShopifyOrdersList.mock.calls.at(-1)![1].financialStatus).toBeUndefined();
+  });
+
+  it("forwards search query (trimmed) and cursor", async () => {
+    await request(makeApp()).get("/api/metrics/shopify/orders?q=  jane@x.com  &cursor=abc%7Cxyz");
+    const opts = mocks.getShopifyOrdersList.mock.calls.at(-1)![1];
+    expect(opts.q).toBe("jane@x.com");
+    expect(opts.cursor).toBe("abc|xyz");
+  });
+
+  it("scopes to the caller's workspace", async () => {
+    await request(makeApp())
+      .get("/api/metrics/shopify/orders")
+      .set("X-Test-Workspace-Id", "ws_alpha");
+    expect(mocks.getShopifyOrdersList.mock.calls.at(-1)![0]).toBe("ws_alpha");
+  });
+
+  it("returns the service result verbatim", async () => {
+    mocks.getShopifyOrdersList.mockResolvedValueOnce({
+      orders: [{ id: "o_1", externalId: "1001", totalPrice: 99.5 }],
+      nextCursor: "2026-06-01T00:00:00.000Z|o_1",
+    });
+    const res = await request(makeApp()).get("/api/metrics/shopify/orders");
+    expect(res.status).toBe(200);
+    expect(res.body.orders).toHaveLength(1);
+    expect(res.body.nextCursor).toBe("2026-06-01T00:00:00.000Z|o_1");
+  });
+});
+
+describe("GET /shopify/orders/:id", () => {
+  it("returns 404 when the order isn't in the caller's workspace", async () => {
+    mocks.getShopifyOrderDetail.mockResolvedValueOnce(null);
+    const res = await request(makeApp()).get("/api/metrics/shopify/orders/o_missing");
+    expect(res.status).toBe(404);
+  });
+
+  it("returns the raw payload on success", async () => {
+    mocks.getShopifyOrderDetail.mockResolvedValueOnce({ id: "o_1", raw: { foo: "bar" } });
+    const res = await request(makeApp()).get("/api/metrics/shopify/orders/o_1");
+    expect(res.status).toBe(200);
+    expect(res.body.raw).toEqual({ foo: "bar" });
+  });
+
+  it("scopes detail lookup to the caller's workspace", async () => {
+    await request(makeApp())
+      .get("/api/metrics/shopify/orders/o_1")
+      .set("X-Test-Workspace-Id", "ws_other");
+    expect(mocks.getShopifyOrderDetail).toHaveBeenCalledWith("ws_other", "o_1");
+  });
+});
+
+describe("GET /shopify/top-products and /shopify/top-customers", () => {
+  it("forwards range + workspace + default limit=10 to top-products", async () => {
+    await request(makeApp()).get("/api/metrics/shopify/top-products?range=14d");
+    const args = mocks.getShopifyTopProducts.mock.calls.at(-1)!;
+    expect(args[0]).toBe("ws_caller");
+    expect(args[1]).toBe("14d");
+    expect(args.at(-1)).toBe(10);
+  });
+
+  it("caps top-products limit at 50", async () => {
+    await request(makeApp()).get("/api/metrics/shopify/top-products?limit=9999");
+    expect(mocks.getShopifyTopProducts.mock.calls.at(-1)!.at(-1)).toBe(50);
+  });
+
+  it("rejects non-numeric limit by defaulting to 10", async () => {
+    await request(makeApp()).get("/api/metrics/shopify/top-products?limit=banana");
+    expect(mocks.getShopifyTopProducts.mock.calls.at(-1)!.at(-1)).toBe(10);
+  });
+
+  it("wraps top-products response in { products: [...] }", async () => {
+    mocks.getShopifyTopProducts.mockResolvedValueOnce([
+      { title: "Hoodie", sku: "HOOD-1", units: 12, revenue: 480 },
+    ]);
+    const res = await request(makeApp()).get("/api/metrics/shopify/top-products");
+    expect(res.status).toBe(200);
+    expect(res.body.products[0].title).toBe("Hoodie");
+  });
+
+  it("wraps top-customers response in { customers: [...] }", async () => {
+    mocks.getShopifyTopCustomers.mockResolvedValueOnce([
+      { email: "fan@x.com", orders: 3, revenue: 175 },
+    ]);
+    const res = await request(makeApp()).get("/api/metrics/shopify/top-customers");
+    expect(res.status).toBe(200);
+    expect(res.body.customers[0].email).toBe("fan@x.com");
   });
 });

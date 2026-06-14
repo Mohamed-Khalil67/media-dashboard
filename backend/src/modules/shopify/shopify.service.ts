@@ -12,6 +12,14 @@ export interface ShopifyOrder {
   created_at: string;
   email?: string | null;
   financial_status?: string;
+  fulfillment_status?: string | null;
+  /** Shopify's human-readable identifier, e.g. "#1023" (without # prefix in `order_number`). */
+  order_number?: number;
+  name?: string;
+  line_items?: Array<{ id?: number; title?: string; sku?: string; quantity?: number; price?: string }>;
+  customer?: { email?: string | null; first_name?: string | null; last_name?: string | null } | null;
+  shipping_address?: { name?: string | null; city?: string | null; country?: string | null } | null;
+  note?: string | null;
 }
 
 const SHOP_DOMAIN_RE = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i;
