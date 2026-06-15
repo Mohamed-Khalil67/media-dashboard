@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, inject, signal } from "@angular/core";
 import { RouterLink } from "@angular/router";
-import { CurrencyPipe } from "@angular/common";
+import { CurrencyPipe, DecimalPipe } from "@angular/common";
 import { NgApexchartsModule, ApexOptions } from "ng-apexcharts";
 import { AuthService } from "../../core/auth.service";
 import { ConnectionsService } from "../../core/connections.service";
@@ -26,7 +26,7 @@ import { ShopifySubtabsComponent } from "./shopify-subtabs.component";
 @Component({
   selector: "app-shopify-dashboard",
   imports: [
-    RouterLink, CurrencyPipe, NgApexchartsModule,
+    RouterLink, CurrencyPipe, DecimalPipe, NgApexchartsModule,
     KpiCardComponent, RefreshBarComponent, RangeSelectorComponent, DropdownComponent,
     DashboardTabsComponent, ShopifySubtabsComponent,
   ],
@@ -101,7 +101,27 @@ import { ShopifySubtabsComponent } from "./shopify-subtabs.component";
         <app-kpi-card label="Revenue"          [value]="kpis()!.revenue" prefix="E£" [delta]="kpis()!.delta.revenue" [previous]="kpis()!.previous.revenue" />
         <app-kpi-card label="Orders"           [value]="kpis()!.orders"               [delta]="kpis()!.delta.orders"  [previous]="kpis()!.previous.orders" />
         <app-kpi-card label="AOV"              [value]="kpis()!.aov"      prefix="E£" format="1.2-2" [delta]="kpis()!.delta.aov" [previous]="kpis()!.previous.aov" />
-        <app-kpi-card label="Conversion rate"  [value]="kpis()!.conversionRate * 100" suffix="%" format="1.2-2" />
+        <app-kpi-card label="Conversion rate"  [value]="kpis()!.conversionRate * 100" suffix="%" format="1.2-2" [subtext]="conversionSubtext()" />
+      </section>
+
+      <section class="insights-row">
+        <article class="card insight-card">
+          <span class="stat-label">Daily revenue (avg)</span>
+          <span class="stat-value">{{ insights().dailyRevenue | currency: "EGP":"symbol":"1.0-0" }}</span>
+        </article>
+        <article class="card insight-card">
+          <span class="stat-label">Daily orders (avg)</span>
+          <span class="stat-value">{{ insights().dailyOrders | number: "1.0-1" }}</span>
+        </article>
+        <article class="card insight-card">
+          <span class="stat-label">Best day</span>
+          @if (insights().bestDate) {
+            <span class="stat-value">{{ insights().bestRevenue | currency: "EGP":"symbol":"1.0-0" }}</span>
+            <span class="stat-sub muted">{{ insights().bestDate }}</span>
+          } @else {
+            <span class="stat-value muted">—</span>
+          }
+        </article>
       </section>
 
       <section class="card">
@@ -174,7 +194,7 @@ import { ShopifySubtabsComponent } from "./shopify-subtabs.component";
     }
   `,
   styles: [`
-    .page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .page-head h1 { margin: 0 0 .25rem; color: var(--text); }
     .muted { color: var(--text-muted); margin: 0; }
     .actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
@@ -191,9 +211,15 @@ import { ShopifySubtabsComponent } from "./shopify-subtabs.component";
     .check { color: #16a34a; font-weight: 600; }
     .divider { height: 1px; background: var(--card-bd); margin: .25rem .25rem; }
 
-    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1rem; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .85rem; margin-bottom: .85rem; }
     @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
-    .card { background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: .75rem; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    .insights-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: .85rem; margin-bottom: .85rem; }
+    @media (max-width: 900px) { .insights-row { grid-template-columns: 1fr; } }
+    .insight-card { display: flex; flex-direction: column; gap: .15rem; padding: .85rem 1.1rem; margin-bottom: 0; }
+    .stat-label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; font-weight: 500; }
+    .stat-value { font-size: 1.35rem; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.15; }
+    .stat-sub { font-size: .72rem; }
+    .card { background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: .75rem; padding: 1rem 1.25rem; margin-bottom: .85rem; }
     .card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: .5rem; }
     .card-head h3 { margin: 0; font-size: 1rem; color: var(--text); }
     .empty { background: var(--card-bg); border: 1px dashed var(--input-bd); border-radius: .75rem; padding: 3rem 2rem; text-align: center; color: var(--text-muted); }
@@ -204,7 +230,7 @@ import { ShopifySubtabsComponent } from "./shopify-subtabs.component";
     .skeleton-card { height: 7.5rem; background: var(--card-bg); border-radius: .75rem; border: 1px solid var(--card-bd); background-image: linear-gradient(90deg, var(--card-bg) 0%, var(--ghost-bg) 50%, var(--card-bg) 100%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
     @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 
-    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; margin-bottom: .85rem; }
     @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
     .list-card { padding: 1.1rem 1.25rem; }
     .rank-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .4rem; }
@@ -245,6 +271,29 @@ export class ShopifyDashboardComponent implements OnInit, OnDestroy {
   readonly selectedConn = signal<string | null>(null);
 
   readonly shopifyConns = computed(() => this.connections().filter((c) => c.platform === "shopify"));
+
+  readonly conversionSubtext = computed(() => {
+    const k = this.kpis();
+    if (!k) return null;
+    return `across ${k.orders.toLocaleString()} ${k.orders === 1 ? "order" : "orders"}`;
+  });
+
+  readonly insights = computed(() => {
+    const pts = this.points();
+    if (pts.length === 0) {
+      return { dailyRevenue: 0, dailyOrders: 0, bestDate: null as string | null, bestRevenue: 0 };
+    }
+    const totalRev = pts.reduce((s, p) => s + p.revenue, 0);
+    const totalOrd = pts.reduce((s, p) => s + p.orders, 0);
+    const days = pts.length;
+    const best = pts.reduce((acc, p) => (p.revenue > acc.revenue ? p : acc), pts[0]);
+    return {
+      dailyRevenue: totalRev / days,
+      dailyOrders: totalOrd / days,
+      bestDate: best.date,
+      bestRevenue: best.revenue,
+    };
+  });
 
   readonly shopLabel = computed(() => {
     const id = this.selectedConn();

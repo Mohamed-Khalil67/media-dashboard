@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getShopifyOrderDetail: vi.fn(),
   getShopifyTopProducts: vi.fn(),
   getShopifyTopCustomers: vi.fn(),
+  getShopifyOrdersSummary: vi.fn(),
   callerWorkspaceId: "ws_caller",
 }));
 
@@ -36,6 +37,7 @@ vi.mock("./metrics.service", () => ({
   getShopifyOrderDetail: mocks.getShopifyOrderDetail,
   getShopifyTopProducts: mocks.getShopifyTopProducts,
   getShopifyTopCustomers: mocks.getShopifyTopCustomers,
+  getShopifyOrdersSummary: mocks.getShopifyOrdersSummary,
 }));
 
 import metricsRoutes from "./metrics.routes";
@@ -59,6 +61,7 @@ beforeEach(() => {
   mocks.getShopifyOrderDetail.mockResolvedValue({ id: "o_1", raw: {} });
   mocks.getShopifyTopProducts.mockResolvedValue([]);
   mocks.getShopifyTopCustomers.mockResolvedValue([]);
+  mocks.getShopifyOrdersSummary.mockResolvedValue({ orders: 0, revenue: 0, avgItemsPerOrder: 0 });
 });
 
 describe("range parsing", () => {
@@ -261,5 +264,27 @@ describe("GET /shopify/top-products and /shopify/top-customers", () => {
     const res = await request(makeApp()).get("/api/metrics/shopify/top-customers");
     expect(res.status).toBe(200);
     expect(res.body.customers[0].email).toBe("fan@x.com");
+  });
+});
+
+describe("GET /shopify/orders-summary", () => {
+  it("calls the service with no date overrides when no query params provided (service applies 24h default)", async () => {
+    await request(makeApp()).get("/api/metrics/shopify/orders-summary");
+    const args = mocks.getShopifyOrdersSummary.mock.calls.at(-1)!;
+    expect(args[0]).toBe("ws_caller");
+    expect(args[1]).toMatchObject({ sinceISO: undefined, untilISO: undefined, connectionId: undefined });
+  });
+
+  it("forwards connectionId + since/until to the service", async () => {
+    await request(makeApp()).get("/api/metrics/shopify/orders-summary?connectionId=c_7&since=2026-06-01&until=2026-06-14");
+    const args = mocks.getShopifyOrdersSummary.mock.calls.at(-1)!;
+    expect(args[1]).toMatchObject({ connectionId: "c_7", sinceISO: "2026-06-01", untilISO: "2026-06-14" });
+  });
+
+  it("scopes the summary to the caller's workspace", async () => {
+    await request(makeApp())
+      .get("/api/metrics/shopify/orders-summary")
+      .set("X-Test-Workspace-Id", "ws_alpha");
+    expect(mocks.getShopifyOrdersSummary.mock.calls.at(-1)![0]).toBe("ws_alpha");
   });
 });

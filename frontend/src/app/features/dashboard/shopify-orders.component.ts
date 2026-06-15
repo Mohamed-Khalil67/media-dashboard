@@ -8,11 +8,12 @@ import { ConnectionsService } from "../../core/connections.service";
 import { DashboardService } from "../../core/dashboard.service";
 import { StatusBarService } from "../../core/status-bar.service";
 import { Connection } from "../../core/models/connection.models";
-import { ShopifyOrderListItem } from "../../core/models/metrics.models";
+import { ShopifyOrderListItem, ShopifyOrdersSummary } from "../../core/models/metrics.models";
 import { DashboardTabsComponent } from "./dashboard-tabs.component";
 import { ShopifySubtabsComponent } from "./shopify-subtabs.component";
 import { DropdownComponent } from "../../shared/dropdown.component";
 import { RefreshBarComponent } from "./components/refresh-bar.component";
+import { KpiCardComponent } from "./components/kpi-card.component";
 
 const STATUSES = [
   { value: "", label: "All statuses" },
@@ -28,7 +29,7 @@ const STATUSES = [
   selector: "app-shopify-orders",
   imports: [
     RouterLink, ReactiveFormsModule, CurrencyPipe, DatePipe, DecimalPipe,
-    DashboardTabsComponent, ShopifySubtabsComponent, DropdownComponent, RefreshBarComponent,
+    DashboardTabsComponent, ShopifySubtabsComponent, DropdownComponent, RefreshBarComponent, KpiCardComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -68,6 +69,14 @@ const STATUSES = [
         }
       </div>
     </header>
+
+    @if (shopifyConns().length > 0 && summary(); as s) {
+      <section class="kpi-strip">
+        <app-kpi-card label="Orders (24h)"      [value]="s.orders" />
+        <app-kpi-card label="Revenue (24h)"     [value]="s.revenue" prefix="E£" />
+        <app-kpi-card label="Avg items / order" [value]="s.avgItemsPerOrder" format="1.1-1" />
+      </section>
+    }
 
     <div class="filter-bar">
       <input class="search" type="search" placeholder="Search by customer email or order #" [formControl]="searchCtrl" aria-label="Search orders" />
@@ -196,6 +205,9 @@ const STATUSES = [
     .check { color: #16a34a; font-weight: 600; }
     .divider { height: 1px; background: var(--card-bd); margin: .25rem .25rem; }
 
+    .kpi-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: .85rem; margin-bottom: 1rem; }
+    @media (max-width: 900px) { .kpi-strip { grid-template-columns: 1fr; } }
+
     .filter-bar { display: flex; gap: .65rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .search, .status-select {
       border: 1px solid var(--input-bd); background: var(--card-bg); color: var(--text);
@@ -288,6 +300,7 @@ export class ShopifyOrdersComponent implements OnInit {
   readonly statusFilter = signal<string>("");
 
   readonly orders = signal<ShopifyOrderListItem[]>([]);
+  readonly summary = signal<ShopifyOrdersSummary | null>(null);
   readonly nextCursor = signal<string | null>(null);
   readonly loading = signal(false);
   readonly loadingMore = signal(false);
@@ -343,13 +356,18 @@ export class ShopifyOrdersComponent implements OnInit {
     if (this.lastUpdated() === null) this.loading.set(true);
     this.refreshing.set(true);
     try {
-      const res = await this.api.getShopifyOrdersList({
-        connectionId: this.selectedConn() ?? undefined,
-        status: this.statusFilter() || undefined,
-        q: this.searchTerm() || undefined,
-      });
+      const connectionId = this.selectedConn() ?? undefined;
+      const [res, summary] = await Promise.all([
+        this.api.getShopifyOrdersList({
+          connectionId,
+          status: this.statusFilter() || undefined,
+          q: this.searchTerm() || undefined,
+        }),
+        this.api.getShopifyOrdersSummary({ connectionId }),
+      ]);
       this.orders.set(res.orders);
       this.nextCursor.set(res.nextCursor);
+      this.summary.set(summary);
       this.lastUpdated.set(new Date());
     } catch {
       this.status.error("Could not load orders");

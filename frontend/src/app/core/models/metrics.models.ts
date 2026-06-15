@@ -115,3 +115,9 @@ export interface ShopifyTopCustomer {
   orders: number;
   revenue: number;
 }
+
+export interface ShopifyOrdersSummary {
+  orders: number;
+  revenue: number;
+  avgItemsPerOrder: number;
+}

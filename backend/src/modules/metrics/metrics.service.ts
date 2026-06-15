@@ -614,3 +614,39 @@ export async function getShopifyTopCustomers(
     revenue: round(g._sum.totalPrice ?? 0),
   }));
 }
+
+export interface ShopifyOrdersSummary {
+  orders: number;
+  revenue: number;
+  avgItemsPerOrder: number;
+}
+
+/**
+ * Compact "today summary" used by the orders subpage header strip. Window
+ * defaults to the last 24h when no since/until is provided. Single Prisma
+ * aggregate over the denormalized columns — no JSON parsing.
+ */
+export async function getShopifyOrdersSummary(
+  workspaceId: string,
+  opts: { connectionId?: string; sinceISO?: string; untilISO?: string } = {},
+): Promise<ShopifyOrdersSummary> {
+  const now = new Date();
+  const dayMs = 24 * 60 * 60 * 1000;
+  const since = opts.sinceISO ? new Date(opts.sinceISO) : new Date(now.getTime() - dayMs);
+  const until = opts.untilISO ? new Date(opts.untilISO) : now;
+
+  const agg = await prisma.shopifyOrder.aggregate({
+    where: {
+      createdAt: { gte: since, lt: until },
+      connection: opts.connectionId ? { workspaceId, id: opts.connectionId } : { workspaceId },
+    },
+    _count: { _all: true },
+    _sum: { totalPrice: true, lineItemsCount: true },
+  });
+
+  const orders = agg._count._all;
+  const revenue = round(agg._sum.totalPrice ?? 0);
+  const items = agg._sum.lineItemsCount ?? 0;
+  const avgItemsPerOrder = orders > 0 ? round(items / orders) : 0;
+  return { orders, revenue, avgItemsPerOrder };
+}

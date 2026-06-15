@@ -10,6 +10,7 @@ import {
   getShopifyOrderDetail,
   getShopifyTopProducts,
   getShopifyTopCustomers,
+  getShopifyOrdersSummary,
 } from "./metrics.service";
 
 const router = Router();
@@ -107,6 +108,15 @@ router.get("/shopify/top-products", async (req, res: Response) => {
       connId(req), topLimit(req),
     ),
   });
+});
+
+router.get("/shopify/orders-summary", async (req, res: Response) => {
+  const workspaceId = (req as AuthedRequest).workspaceId;
+  res.json(await getShopifyOrdersSummary(workspaceId, {
+    connectionId: connId(req),
+    sinceISO: dateParam(req, "since"),
+    untilISO: dateParam(req, "until"),
+  }));
 });
 
 router.get("/shopify/top-customers", async (req, res: Response) => {

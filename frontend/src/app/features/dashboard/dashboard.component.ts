@@ -163,18 +163,36 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
         <app-kpi-card label="Revenue" [value]="kpis()!.revenue"   prefix="E£" [delta]="kpis()!.delta.revenue" [previous]="kpis()!.previous.revenue" />
         <app-kpi-card label="ROAS"    [value]="kpis()!.roas"      suffix="x" format="1.2-2" [delta]="kpis()!.delta.roas" [previous]="kpis()!.previous.roas" />
         <app-kpi-card label="Orders"  [value]="kpis()!.orders"               [delta]="kpis()!.delta.orders" [previous]="kpis()!.previous.orders" />
-        <app-kpi-card label="AOV"     [value]="kpis()!.aov"       prefix="E£" format="1.2-2" />
-        <app-kpi-card label="CTR"     [value]="kpis()!.ctr * 100" suffix="%" format="1.2-2" />
+        <app-kpi-card label="AOV"     [value]="kpis()!.aov"       prefix="E£" format="1.2-2" [subtext]="aovSubtext()" />
+        <app-kpi-card label="CTR"     [value]="kpis()!.ctr * 100" suffix="%" format="1.2-2" [subtext]="ctrSubtext()" />
       </section>
 
       <section class="insights-row">
         <article class="card pacing">
-          <h3>Pacing</h3>
-          <div class="big">{{ pacing().dailyAvg | currency: "EGP":"symbol":"1.0-0" }} <small>/ day</small></div>
-          <p class="muted">Projected {{ pacing().days }}-day total: <strong>{{ pacing().projected | currency: "EGP":"symbol":"1.0-0" }}</strong></p>
+          <h3>Pacing & health</h3>
+          <div class="stat-grid">
+            <div class="stat">
+              <span class="stat-label">Daily spend</span>
+              <span class="stat-value">{{ pacing().dailyAvg | currency: "EGP":"symbol":"1.0-0" }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">{{ pacing().days }}-day projected</span>
+              <span class="stat-value">{{ pacing().projected | currency: "EGP":"symbol":"1.0-0" }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Active campaigns</span>
+              <span class="stat-value">{{ campaignStats().active }}<small> / {{ campaignStats().total }}</small></span>
+              <span class="stat-sub muted">{{ campaignStats().pct }}% live</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Delivery stalled</span>
+              <span class="stat-value" [class.warn]="campaignStats().stalled > 0">{{ campaignStats().stalled }}</span>
+              <span class="stat-sub muted">{{ campaignStats().stalled === 0 ? "All running" : "needs attention" }}</span>
+            </div>
+          </div>
         </article>
         <article class="card top">
-          <h3>Top performers</h3>
+          <h3>Top performers <small class="muted">by ROAS</small></h3>
           @if (topPerformers().length === 0) {
             <p class="muted">No campaigns with spend yet.</p>
           } @else {
@@ -182,7 +200,8 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
               @for (c of topPerformers(); track c.campaignId) {
                 <li>
                   <span class="rank">{{ $index + 1 }}</span>
-                  <span class="t-name">{{ c.name }}</span>
+                  <span class="t-name" [title]="c.name">{{ c.name }}</span>
+                  <span class="t-spend muted">{{ c.spend | currency: "EGP":"symbol":"1.0-0" }}</span>
                   <span class="t-roas">{{ c.roas | number: "1.2-2" }}x</span>
                 </li>
               }
@@ -205,7 +224,7 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
     }
   `,
   styles: [`
-    .page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .page-head h1 { margin: 0 0 .25rem; color: var(--text); }
     .muted { color: var(--text-muted); margin: 0; }
     .status-row { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
@@ -244,22 +263,31 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
     .health-banner--stale { display: flex; flex-direction: column; gap: .2rem; }
     .health-banner--stale span { font-size: .8rem; opacity: .9; font-weight: 400; }
 
-    .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1rem; margin-bottom: 1rem; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: .85rem; margin-bottom: .85rem; }
     @media (max-width: 1100px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } }
     @media (max-width: 600px)  { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
-    .insights-row { display: grid; grid-template-columns: 1fr 2fr; gap: 1rem; margin-bottom: 1rem; }
+    .insights-row { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; margin-bottom: .85rem; }
     @media (max-width: 900px) { .insights-row { grid-template-columns: 1fr; } }
     .card { background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: .75rem; padding: 1rem 1.25rem; }
-    .card h3 { margin: 0 0 .5rem; font-size: 1rem; color: var(--text); }
-    .pacing .big { font-size: 1.75rem; font-weight: 600; color: var(--text); }
-    .pacing .big small { font-size: .9rem; color: var(--muted); font-weight: 400; }
-    .pacing p { margin: .25rem 0 0; font-size: .85rem; color: var(--text-muted); }
-    .top ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .35rem; }
-    .top li { display: grid; grid-template-columns: auto 1fr auto; gap: .75rem; align-items: center; font-size: .9rem; }
-    .top .rank { width: 1.5rem; height: 1.5rem; border-radius: 999px; background: var(--ghost-bg); color: var(--accent); text-align: center; line-height: 1.5rem; font-size: .75rem; font-weight: 600; }
+    .card h3 { margin: 0 0 .65rem; font-size: 1rem; color: var(--text); display: flex; align-items: baseline; gap: .4rem; }
+    .card h3 small { font-size: .75rem; font-weight: 400; }
+
+    /* Pacing — compact 2x2 stat grid so the card fills its height instead of leaving white space */
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem .9rem; }
+    .stat { display: flex; flex-direction: column; gap: .1rem; padding: .35rem 0; }
+    .stat-label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; font-weight: 500; }
+    .stat-value { font-size: 1.35rem; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.15; }
+    .stat-value small { font-size: .85rem; color: var(--muted); font-weight: 400; }
+    .stat-value.warn { color: #dc2626; }
+    .stat-sub { font-size: .72rem; }
+
+    .top ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .25rem; }
+    .top li { display: grid; grid-template-columns: 1.4rem 1fr auto auto; gap: .65rem; align-items: center; font-size: .85rem; padding: .15rem 0; }
+    .top .rank { width: 1.4rem; height: 1.4rem; border-radius: 999px; background: var(--ghost-bg); color: var(--accent); text-align: center; line-height: 1.4rem; font-size: .7rem; font-weight: 600; }
     .top .t-name { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .top .t-roas { color: #16a34a; font-weight: 500; font-variant-numeric: tabular-nums; }
-    .row { display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem; align-items: stretch; }
+    .top .t-spend { font-size: .78rem; font-variant-numeric: tabular-nums; }
+    .top .t-roas { color: #16a34a; font-weight: 500; font-variant-numeric: tabular-nums; min-width: 3.5rem; text-align: right; }
+    .row { display: grid; grid-template-columns: 2fr 1fr; gap: .85rem; margin-bottom: .85rem; align-items: stretch; }
     @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
     .col--wide { min-width: 0; display: flex; flex-direction: column; min-height: 28rem; }
     .col--wide > app-roas-chart { flex: 1 1 0; min-height: 0; }
@@ -333,7 +361,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
     [...this.campaigns()]
       .filter((c) => c.spend > 0 && c.roas > 0)
       .sort((a, b) => b.roas - a.roas)
-      .slice(0, 3)
+      .slice(0, 5)
   );
 
   readonly pacing = computed(() => {
@@ -343,6 +371,26 @@ export class DashboardComponent implements OnInit, OnDestroy {
     const dailyAvg = totalSpend / daysWithSpend;
     const days = points.length || 7;
     return { dailyAvg, days, projected: dailyAvg * days };
+  });
+
+  readonly aovSubtext = computed(() => {
+    const k = this.kpis();
+    if (!k) return null;
+    return `across ${k.orders.toLocaleString()} ${k.orders === 1 ? "order" : "orders"}`;
+  });
+
+  readonly ctrSubtext = computed(() => {
+    const k = this.kpis();
+    if (!k) return null;
+    return `${k.clicks.toLocaleString()} clicks of ${k.impressions.toLocaleString()} impressions`;
+  });
+
+  readonly campaignStats = computed(() => {
+    const all = this.campaigns();
+    const active = all.filter((c) => c.status?.toUpperCase() === "ACTIVE").length;
+    const stalled = all.filter((c) => c.deliveryStalled).length;
+    const pct = all.length > 0 ? Math.round((active / all.length) * 100) : 0;
+    return { active, total: all.length, stalled, pct };
   });
 
   readonly accountLabel = computed(() => {

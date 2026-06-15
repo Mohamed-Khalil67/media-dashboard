@@ -16,6 +16,7 @@ import {
   ShopifyOrderDetail,
   ShopifyTopProduct,
   ShopifyTopCustomer,
+  ShopifyOrdersSummary,
 } from "./models/metrics.models";
 
 export type AdPlatform = "facebook" | "tiktok";
@@ -118,6 +119,14 @@ export class DashboardService {
     if (opts.until) params = params.set("until", opts.until);
     const res = await firstValueFrom(this.http.get<{ customers: ShopifyTopCustomer[] }>(`${this.api}/metrics/shopify/top-customers`, { params }));
     return res.customers;
+  }
+
+  async getShopifyOrdersSummary(opts: { connectionId?: string; since?: string; until?: string } = {}): Promise<ShopifyOrdersSummary> {
+    let params = new HttpParams();
+    if (opts.connectionId) params = params.set("connectionId", opts.connectionId);
+    if (opts.since) params = params.set("since", opts.since);
+    if (opts.until) params = params.set("until", opts.until);
+    return firstValueFrom(this.http.get<ShopifyOrdersSummary>(`${this.api}/metrics/shopify/orders-summary`, { params }));
   }
 
   async setCampaignStatus(campaignId: string, status: "PAUSED" | "ACTIVE"): Promise<void> {
