@@ -23,19 +23,6 @@ const SUPPORTED_OPERATORS: ReadonlyArray<Operator> = ["lt", "gt"];
 
 const EVAL_WINDOW_DAYS = 7;
 
-/** Seed each new workspace with sensible defaults. The owning user owns the rule rows too (for legacy single-user queries). */
-export async function seedDefaultRules(workspaceId: string, userId: string): Promise<void> {
-  const defaults: Array<Pick<AlertRule, "metric" | "operator" | "threshold">> = [
-    { metric: "roas", operator: "lt", threshold: 2 },
-    { metric: "frequency", operator: "gt", threshold: 4 },
-    { metric: "ctr", operator: "lt", threshold: 0.005 },
-  ];
-  await prisma.alertRule.createMany({
-    data: defaults.map((d) => ({ ...d, workspaceId, userId })),
-    skipDuplicates: true,
-  });
-}
-
 export function isSupportedMetric(m: unknown): m is Metric {
   return typeof m === "string" && (SUPPORTED_METRICS as readonly string[]).includes(m);
 }
@@ -91,14 +78,14 @@ function describe(metric: Metric, operator: Operator, observed: number, threshol
   }
 }
 
-export async function evaluateAlerts(workspaceId: string, connectionId?: string, platform?: string): Promise<EvaluatedAlert[]> {
-  const connFilter: Record<string, string> = { workspaceId };
+export async function evaluateAlerts(userId: string, connectionId?: string, platform?: string): Promise<EvaluatedAlert[]> {
+  const connFilter: Record<string, string> = { userId };
   if (connectionId) connFilter.id = connectionId;
   if (platform) connFilter.platform = platform;
   const campaignWhere = { connection: connFilter };
 
   const [rules, campaigns] = await Promise.all([
-    prisma.alertRule.findMany({ where: { workspaceId, enabled: true } }),
+    prisma.alertRule.findMany({ where: { userId, enabled: true } }),
     prisma.campaign.findMany({
       where: campaignWhere,
       include: { connection: { select: { platform: true } } },

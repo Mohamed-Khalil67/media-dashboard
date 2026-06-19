@@ -24,7 +24,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, HostListener, OnDestroy
       padding: .45rem .85rem; border-radius: .5rem; cursor: pointer; font-size: .85rem;
       transition: border-color .12s;
     }
-    .dd-trigger:hover, .dd-trigger.open { border-color: #4f46e5; }
+    .dd-trigger:hover, .dd-trigger.open { border-color: var(--accent); }
     .caret { color: var(--muted); font-size: .65rem; }
     .dd-menu {
       position: absolute; top: calc(100% + .35rem); left: 0; z-index: 50;

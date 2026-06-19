@@ -46,10 +46,8 @@ import { DecimalPipe, PercentPipe } from "@angular/common";
       white-space: nowrap;
     }
     .pill .arrow { font-size: .65rem; line-height: 1; }
-    .pill--up   { background: #dcfce7; color: #166534; }
-    .pill--down { background: #fee2e2; color: #b91c1c; }
-    :host-context(html.dark) .pill--up   { background: rgba(22, 163, 74, .18); color: #4ade80; }
-    :host-context(html.dark) .pill--down { background: rgba(220, 38, 38, .18); color: #f87171; }
+    .pill--up   { background: var(--success-soft); color: var(--success-strong); }
+    .pill--down { background: var(--danger-soft); color: var(--danger-strong); }
 
     .value { font-size: 1.7rem; font-weight: 600; color: var(--text, #0f172a); line-height: 1.1; font-variant-numeric: tabular-nums; }
     .prefix, .suffix { color: var(--muted, #94a3b8); font-weight: 400; font-size: 1.05rem; }

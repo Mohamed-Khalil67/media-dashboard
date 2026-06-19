@@ -9,16 +9,6 @@ import { AuthUser } from "./models/auth.models";
 
 const USER_KEY = "auth.user";
 
-/**
- * Wraps Firebase Authentication.
- *
- * - The Firebase SDK persists its own session in IndexedDB and auto-refreshes ID tokens.
- * - We keep a cached `AuthUser` snapshot (our DB profile from `/api/auth/me`) in localStorage
- *   so the UI can render immediately on reload while Firebase hydrates.
- *
- * All Firebase access goes through `FIREBASE_AUTH_GATEWAY` — see
- * `firebase-auth.gateway.ts` for the rationale (test-ability via TestBed).
- */
 @Injectable({ providedIn: "root" })
 export class AuthService {
   private readonly http = inject(HttpClient);
@@ -43,7 +33,6 @@ export class AuthService {
     });
   }
 
-  /** Compatibility shim — auth.interceptor reads it for the Bearer header. */
   token(): Promise<string | null> {
     return this.fbAuth.getIdToken();
   }
@@ -60,12 +49,6 @@ export class AuthService {
     await this.fbAuth.sendPasswordResetEmail(email);
   }
 
-  /**
-   * Calls the backend admin endpoint which:
-   *  - Verifies the email is on the allowlist + has a Firebase account
-   *  - Logs the reset link server-side so the operator can verify Firebase accepted it
-   *  - Returns the reset link in dev mode for direct use when email delivery is blocked
-   */
   async requestPasswordResetWithVerification(email: string): Promise<{ emailSent: boolean; devLink?: string; needsRegistration?: boolean }> {
     return firstValueFrom(
       this.http.post<{ emailSent: boolean; devLink?: string; needsRegistration?: boolean }>(
@@ -83,33 +66,20 @@ export class AuthService {
     localStorage.setItem(USER_KEY, JSON.stringify(res.user));
   }
 
-  async checkMigration(email: string): Promise<{ exists: boolean; pendingMigration: boolean }> {
-    const res = await firstValueFrom(
-      this.http.get<{ exists: boolean; pendingMigration: boolean }>(
-        `${environment.apiUrl}/auth/check-migration?email=${encodeURIComponent(email)}`,
-      ),
-    );
-    return res;
-  }
-
+  /**
+   * Ephemeral-data logout: the backend wipes every Connection (and everything
+   * that cascades from it) before we sign out of Firebase. The User row
+   * survives so the user can log back in to an empty dashboard.
+   */
   async logout(): Promise<void> {
+    // Best-effort: never block sign-out on a backend hiccup. If the call
+    // fails, the data still gets wiped on next sign-in by manual sync (or
+    // the user can retry logout).
+    await firstValueFrom(this.http.post(`${environment.apiUrl}/auth/logout`, {})).catch(() => {});
     await this.fbAuth.signOut();
     localStorage.removeItem(USER_KEY);
     this.user.set(null);
-    this.router.navigate(["/login"]);
-  }
-
-  /**
-   * Called by the interceptor when the backend returns 403 `access_denied`
-   * (email isn't on the invite-only allowlist). Sign the user out of Firebase
-   * so they aren't stuck in a half-authenticated state, then bounce them to
-   * /login with a query flag so the login page shows the denied banner.
-   */
-  async signOutAndRedirectDenied(): Promise<void> {
-    await this.fbAuth.signOut().catch(() => {});
-    localStorage.removeItem(USER_KEY);
-    this.user.set(null);
-    this.router.navigate(["/login"], { queryParams: { denied: 1 } });
+    this.router.navigate(["/"]);
   }
 
   private readStoredUser(): AuthUser | null {

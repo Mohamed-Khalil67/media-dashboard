@@ -5,12 +5,15 @@ import { logger } from "../lib/logger";
 import { runRetentionSweep } from "./retention.job";
 import { syncFacebook, isAuthError, describeSyncError } from "./sync.facebook";
 import { syncShopify } from "./sync.shopify";
-import { syncTiktok } from "./sync.tiktok";
 
-const SCHEDULE = process.env.SYNC_CRON ?? "*/30 * * * *";
+// Default: every 2 minutes — the SaaS pivot promised near-realtime refresh.
+const SCHEDULE = process.env.SYNC_CRON ?? "*/2 * * * *";
 const RETENTION_SCHEDULE = process.env.RETENTION_CRON ?? "0 3 * * *";
-const ACTIVITY_WINDOW_HOURS = Number(process.env.ACTIVITY_WINDOW_HOURS ?? 4);
-const ACTIVITY_WINDOW_MS = ACTIVITY_WINDOW_HOURS * 60 * 60 * 1000;
+const ACTIVITY_WINDOW_MINUTES = Number(process.env.ACTIVITY_WINDOW_MINUTES ?? 5);
+const ACTIVITY_WINDOW_MS = ACTIVITY_WINDOW_MINUTES * 60 * 1000;
+// Skip a connection if it was synced within this many seconds — prevents the
+// 2-minute cron from re-syncing already-fresh data and burning API quota.
+const COOLDOWN_SECONDS = Number(process.env.SYNC_COOLDOWN_SECONDS ?? 90);
 
 export interface SyncResult {
   connectionId: string;
@@ -26,7 +29,7 @@ interface SyncContextLog {
 
 /**
  * Run sync for every active connection whose OWNING USER has been active
- * within ACTIVITY_WINDOW_HOURS. Skipping idle users avoids burning external
+ * within ACTIVITY_WINDOW_MINUTES. Skipping idle users avoids burning external
  * API quota and DB growth when nobody is looking at the dashboard.
  *
  * Pass `{ force: true }` to bypass the activity gate (used by manual sync
@@ -38,13 +41,13 @@ export async function runAllConnections(opts: { force?: boolean } = {}): Promise
     where.user = { lastActiveAt: { gte: new Date(Date.now() - ACTIVITY_WINDOW_MS) } };
   }
   const connections = await prisma.connection.findMany({ where });
-  return syncConnectionList(connections);
+  const eligible = opts.force ? connections : connections.filter(notRecentlySynced);
+  return syncConnectionList(eligible);
 }
 
 /**
- * Sync every active connection for a single user. Used by the auth middleware
- * to trigger an immediate refresh when a media buyer signs back in after being
- * idle. Always force-bypasses the activity gate (we know they just acted).
+ * Sync every active connection for a single user. Used by manual endpoints
+ * and the post-login refresh. Always force-bypasses the activity gate.
  */
 export async function syncUserConnections(
   userId: string,
@@ -56,7 +59,11 @@ export async function syncUserConnections(
   return syncConnectionList(connections);
 }
 
-/** Internal: run sync on a pre-fetched list. Used by both `runAllConnections` and `syncUserConnections`. */
+function notRecentlySynced(c: Connection): boolean {
+  if (!c.lastSyncAt) return true;
+  return Date.now() - c.lastSyncAt.getTime() > COOLDOWN_SECONDS * 1000;
+}
+
 async function syncConnectionList(connections: Connection[]): Promise<SyncResult[]> {
   const results: SyncResult[] = [];
   for (const conn of connections) {
@@ -73,7 +80,6 @@ async function syncSingle(conn: Connection): Promise<SyncResult> {
     let details: { campaigns?: number; days?: number; orders?: number } | undefined;
     if (conn.platform === "facebook") details = await syncFacebook(conn);
     else if (conn.platform === "shopify") details = await syncShopify(conn);
-    else if (conn.platform === "tiktok") details = await syncTiktok(conn);
 
     const finishedAt = new Date();
     await prisma.syncRun.update({
@@ -119,7 +125,7 @@ export function startSyncJobs(): void {
     const ok = results.filter((r) => r.ok).length;
     logger.info({ ok, total: results.length, durationMs: Date.now() - t0, gated: true }, "sync cycle complete");
   });
-  logger.info({ schedule: SCHEDULE, activityWindowHours: ACTIVITY_WINDOW_HOURS }, "sync cron scheduled");
+  logger.info({ schedule: SCHEDULE, activityWindowMinutes: ACTIVITY_WINDOW_MINUTES }, "sync cron scheduled");
 
   cron.schedule(RETENTION_SCHEDULE, async () => {
     try {

@@ -264,14 +264,7 @@ export class LoginComponent {
   }
 
   async checkEmail(): Promise<void> {
-    const email = this.form.controls.email.value.trim().toLowerCase();
-    if (!this.form.controls.email.valid || !email) return;
-    try {
-      const res = await this.auth.checkMigration(email);
-      this.showMigrationBanner.set(res.pendingMigration);
-    } catch {
-      // silent — don't block the form
-    }
+    // no-op — legacy migration check removed
   }
 
   async sendReset(): Promise<void> {
@@ -297,15 +290,6 @@ export class LoginComponent {
       this.router.navigate(["/dashboard"]);
     } catch (err: any) {
       const code = err?.code ?? "";
-      if (code === "auth/user-not-found" || code === "auth/invalid-credential" || code === "auth/wrong-password") {
-        const email = this.form.controls.email.value.trim().toLowerCase();
-        const check = await this.auth.checkMigration(email).catch(() => null);
-        if (check?.pendingMigration) {
-          this.showMigrationBanner.set(true);
-          this.formError.set(null);
-          return;
-        }
-      }
       this.formError.set(this.friendlyMessage(err) ?? "Could not sign in");
     } finally {
       this.submitting.set(false);

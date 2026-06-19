@@ -19,7 +19,7 @@ import {
   ShopifyOrdersSummary,
 } from "./models/metrics.models";
 
-export type AdPlatform = "facebook" | "tiktok";
+export type AdPlatform = "facebook";
 
 export interface QueryOpts {
   since?: string;

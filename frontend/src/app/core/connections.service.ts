@@ -5,7 +5,8 @@ import { environment } from "../../environments/environment";
 import {
   Connection,
   ConnectionsResponse,
-  ConnectUrlResponse,
+  ConnectStartRequest,
+  ConnectStartResponse,
   Platform,
 } from "./models/connection.models";
 
@@ -48,12 +49,10 @@ export class ConnectionsService {
     await firstValueFrom(this.http.delete(`${this.api}/connections/${id}`));
   }
 
-  async getConnectUrl(platform: Platform, params?: Record<string, string>): Promise<string> {
-    const query = params ? "?" + new URLSearchParams(params).toString() : "";
-    const res = await firstValueFrom(
-      this.http.get<ConnectUrlResponse>(`${this.api}/${platform}/connect${query}`)
+  async connectStart(platform: Platform, body: ConnectStartRequest): Promise<ConnectStartResponse> {
+    return firstValueFrom(
+      this.http.post<ConnectStartResponse>(`${this.api}/${platform}/connect-start`, body)
     );
-    return res.url;
   }
 
   async getSyncHistory(connectionId: string, limit = 50): Promise<SyncHistoryRun[]> {

@@ -11,11 +11,26 @@
   --ghost-bg:    #f1f5f9;
   --ghost-hover: #e2e8f0;
   --accent:        #4338ca;
+  --accent-on:     #ffffff;
   --accent-soft:   #eef2ff;
   --input-bd:      #cbd5e1;
   --chart-grid:    #e2e8f0;
   --chart-axis:    #64748b;
   --shadow:        0 1px 3px rgba(15, 23, 42, .06);
+
+  // Semantic status colors. Use these in components instead of hardcoded hex.
+  --success:        #16a34a;
+  --success-soft:   #dcfce7;
+  --success-strong: #166534;
+  --warning:        #f59e0b;
+  --warning-soft:   #fef3c7;
+  --warning-strong: #92400e;
+  --danger:         #dc2626;
+  --danger-soft:    #fee2e2;
+  --danger-strong:  #b91c1c;
+  --info:           #2563eb;
+  --info-soft:      #dbeafe;
+  --info-strong:    #1e3a8a;
 }
 
 html.dark {
@@ -29,11 +44,25 @@ html.dark {
   --ghost-bg:    #334155;
   --ghost-hover: #475569;
   --accent:        #a5b4fc;
+  --accent-on:     #0b1220;
   --accent-soft:   #312e81;
   --input-bd:      #475569;
   --chart-grid:    #334155;
   --chart-axis:    #94a3b8;
   --shadow:        0 1px 3px rgba(0, 0, 0, .3);
+
+  --success:        #4ade80;
+  --success-soft:   rgba(22, 163, 74, .18);
+  --success-strong: #4ade80;
+  --warning:        #fbbf24;
+  --warning-soft:   rgba(245, 158, 11, .18);
+  --warning-strong: #fbbf24;
+  --danger:         #f87171;
+  --danger-soft:    rgba(220, 38, 38, .18);
+  --danger-strong:  #f87171;
+  --info:           #60a5fa;
+  --info-soft:      rgba(37, 99, 235, .18);
+  --info-strong:    #60a5fa;
 }
 
 html, body {

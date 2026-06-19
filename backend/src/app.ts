@@ -3,15 +3,11 @@ import cors from "cors";
 import helmet from "helmet";
 import authRoutes from "./modules/auth/auth.routes";
 import facebookRoutes from "./modules/facebook/facebook.routes";
-import facebookWebhookRoutes from "./modules/facebook/facebook.webhooks";
 import shopifyRoutes from "./modules/shopify/shopify.routes";
-import tiktokRoutes from "./modules/tiktok/tiktok.routes";
 import connectionsRoutes from "./modules/connections/connections.routes";
 import syncRoutes from "./modules/sync/sync.routes";
 import metricsRoutes from "./modules/metrics/metrics.routes";
 import alertsRoutes from "./modules/alerts/alerts.routes";
-import workspacesRoutes from "./modules/workspaces/workspaces.routes";
-import adminRoutes from "./modules/admin/admin.routes";
 import { apiLimiter } from "./middleware/rateLimit";
 import { logger } from "./lib/logger";
 
@@ -33,13 +29,8 @@ app.get("/api/health", (_req, res) => {
 // Firebase handles brute-force protection upstream, so no /api/auth rate limiter.
 app.use("/api/auth", authRoutes);
 app.use("/api/connections", connectionsRoutes);
-app.use("/api/workspaces", workspacesRoutes);
-app.use("/api/admin", adminRoutes);
-// Webhooks must be mounted before facebookRoutes so they're not gated by requireAuth.
-app.use("/api/facebook/webhooks", facebookWebhookRoutes);
 app.use("/api/facebook", facebookRoutes);
 app.use("/api/shopify", shopifyRoutes);
-app.use("/api/tiktok", tiktokRoutes);
 app.use("/api/sync", syncRoutes);
 // Prevent browsers from caching metrics/alerts responses so filter changes always hit the DB.
 app.use("/api/metrics", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); }, metricsRoutes);

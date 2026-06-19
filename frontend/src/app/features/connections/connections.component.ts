@@ -1,6 +1,6 @@
-import { Component, OnInit, computed, inject, signal } from "@angular/core";
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from "@angular/core";
 import { ActivatedRoute } from "@angular/router";
-import { SlicePipe } from "@angular/common";
+import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
 import { ConnectionsService } from "../../core/connections.service";
 import { StatusBarService } from "../../core/status-bar.service";
 import { Connection, Platform } from "../../core/models/connection.models";
@@ -12,15 +12,23 @@ interface PlatformInfo {
   icon: string;
   blurb: string;
   brand: string;
+  credentialsHelpUrl: string;
+}
+
+function isoDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
 }
 
 @Component({
   selector: "app-connections",
-  imports: [SlicePipe, SyncHistoryComponent],
+  imports: [ReactiveFormsModule, SyncHistoryComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="page-head">
       <h1>Connections</h1>
-      <p class="muted">Hook up your ad platforms and your Shopify store. Data syncs every 30 minutes.</p>
+      <p class="muted">Bring your own platform credentials. We'll sync your data every couple of minutes.</p>
     </header>
 
     @if (loadError(); as msg) {
@@ -32,473 +40,377 @@ interface PlatformInfo {
 
     <section class="connect-grid">
       @for (p of platforms; track p.key) {
-        <article
-          class="card"
-          [class.connected]="countFor(p.key) > 0"
-          [class.selected]="selectedPlatform() === p.key"
-          [class.has-expired]="expiredFor(p.key) > 0"
-          [style.--brand]="p.brand"
-          (click)="onCardClick(p.key)">
-
+        <article class="card" [class.connected]="countFor(p.key) > 0" [style.--brand]="p.brand">
           <div class="card-top">
             <div class="brand">
               <span class="ico">{{ p.icon }}</span>
               <h2>{{ p.label }}</h2>
             </div>
-
             @if (countFor(p.key) > 0) {
-              <div class="status" [class.warn]="expiredFor(p.key) > 0 || failedFor(p.key) > 0">
-                <span class="pulse"></span>
-                <span>{{ expiredFor(p.key) > 0 ? 'Attention' : (failedFor(p.key) > 0 ? 'Sync failing' : 'Active') }}</span>
-              </div>
+              <div class="status"><span class="pulse"></span><span>{{ countFor(p.key) }} connected</span></div>
             } @else {
               <div class="status status--idle"><span>Not connected</span></div>
             }
           </div>
 
-          @if (countFor(p.key) === 0) {
-            <p class="blurb">{{ p.blurb }}</p>
-          }
+          <p class="blurb">{{ p.blurb }}</p>
 
-          @if (countFor(p.key) > 0) {
-            <div class="account-strip">
-              @for (c of accountsFor(p.key) | slice: 0:4; track c.id) {
-                <div class="avatar" [title]="c.accountName ?? c.accountId" [class.expired]="c.status === 'expired'">
-                  {{ initials(c) }}
-                </div>
-              }
-              @if (countFor(p.key) > 4) {
-                <div class="avatar more">+{{ countFor(p.key) - 4 }}</div>
-              }
-            </div>
-            <div class="stats">
-              <div>
-                <strong>{{ countFor(p.key) }}</strong>
-                <span class="muted">{{ countFor(p.key) === 1 ? 'account' : 'accounts' }}</span>
-              </div>
-              @if (expiredFor(p.key) > 0) {
-                <div class="expired-note">
-                  <strong>{{ expiredFor(p.key) }}</strong>
-                  <span>expired</span>
-                </div>
-              }
-            </div>
-          }
-
-          <div class="card-actions" (click)="$event.stopPropagation()">
-            @if (p.key === 'shopify') {
-              <div class="shop-row">
-                <input
-                  type="text"
-                  placeholder="store.myshopify.com"
-                  [value]="shopDomain()"
-                  (input)="shopDomain.set(asValue($event))" />
-                <button
-                  class="primary"
-                  (click)="connectShopify()"
-                  [disabled]="!shopDomain()">
-                  {{ countFor('shopify') > 0 ? 'Add store' : 'Connect' }}
-                </button>
-              </div>
-            } @else {
-              <button class="primary" (click)="connect(p.key)">
-                {{ countFor(p.key) > 0 ? '+ Add another' : 'Connect ' + p.label }}
-              </button>
-            }
-            @if (countFor(p.key) > 0) {
-              <button class="ghost" (click)="onCardClick(p.key)">
-                {{ selectedPlatform() === p.key ? 'Hide accounts' : 'View accounts' }}
-              </button>
-            }
+          <div class="card-actions">
+            <button class="primary" (click)="openModal(p.key)">
+              {{ countFor(p.key) > 0 ? '+ Add another account' : 'Connect ' + p.label }}
+            </button>
           </div>
         </article>
       }
     </section>
 
-    @if (connections().length > 0 || selectedPlatform() !== null) {
+    @if (connections().length > 0) {
       <section class="connections-list">
-        <div class="list-head">
-          <h2>{{ listHeading() }}</h2>
-          @if (selectedPlatform() !== null) {
-            <button class="chip-clear" (click)="selectPlatform(null)">Show all ×</button>
-          }
-        </div>
-
-        @if (filtered().length === 0) {
-          <div class="empty-filter">
-            <p class="muted">No {{ selectedPlatform() }} accounts connected yet.</p>
-            <button class="primary" (click)="connectSelected()">Connect {{ selectedPlatformLabel() }}</button>
-          </div>
-        } @else {
-          <div class="conn-rows">
-            @for (c of filtered(); track c.id) {
-              <div class="conn-row" [class.row-failed]="c.lastSyncOk === false">
-                <div class="conn-left">
-                  <div class="avatar" [style.--brand]="brandFor(c.platform)" [class.expired]="c.status === 'expired'">
-                    {{ initials(c) }}
-                  </div>
-                  <div>
-                    <div class="acct-name">{{ c.accountName ?? c.accountId }}</div>
-                    <div class="acct-sub">
-                      <span class="badge badge--{{ c.platform }}">{{ c.platform }}</span>
-                      <span class="dot">·</span>
-                      <span class="muted-sm">{{ formatSync(c) }}</span>
-                    </div>
-                    @if (c.lastSyncOk === false && c.lastSyncError) {
-                      <div class="sync-err" [title]="c.lastSyncError">
-                        ⚠ {{ c.lastSyncError }}
-                      </div>
+        <h2>Your accounts</h2>
+        <div class="conn-rows">
+          @for (c of connections(); track c.id) {
+            <div class="conn-row" [class.row-failed]="c.lastSyncOk === false">
+              <div class="conn-left">
+                <div class="avatar" [style.--brand]="brandFor(c.platform)">{{ initials(c) }}</div>
+                <div>
+                  <div class="acct-name">{{ c.accountName ?? c.accountId }}</div>
+                  <div class="acct-sub">
+                    <span class="badge badge--{{ c.platform }}">{{ c.platform }}</span>
+                    <span>·</span>
+                    <span class="muted-sm">{{ formatSync(c) }}</span>
+                    @if (c.syncSince) {
+                      <span>·</span>
+                      <span class="muted-sm">since {{ shortDate(c.syncSince) }}</span>
                     }
                   </div>
-                </div>
-                <div class="conn-right">
-                  <span class="status-tag status--{{ c.status }}">
-                    <span class="dot-sm"></span> {{ c.status }}
-                  </span>
-                  @if (c.lastSyncOk === false) {
-                    <span class="status-tag status--failed"><span class="dot-sm"></span> sync failed</span>
+                  @if (c.lastSyncOk === false && c.lastSyncError) {
+                    <div class="sync-err" [title]="c.lastSyncError">⚠ {{ c.lastSyncError }}</div>
                   }
-                  @if (c.status === 'expired' && c.platform !== 'shopify') {
-                    <button class="primary primary-sm" (click)="reconnect(c)">Reconnect</button>
-                  }
-                  <button class="ghost" (click)="toggleHistory(c.id)">
-                    {{ expandedId() === c.id ? 'Hide history' : 'Sync history' }}
-                  </button>
-                  <button class="danger" (click)="disconnect(c)">Disconnect</button>
                 </div>
               </div>
-              @if (expandedId() === c.id) {
-                <app-sync-history [connectionId]="c.id" />
-              }
-            }
-          </div>
-        }
+              <div class="conn-right">
+                <span class="status-tag status--{{ c.status }}"><span class="dot-sm"></span> {{ c.status }}</span>
+                <button class="ghost" (click)="toggleHistory(c.id)">
+                  {{ expandedId() === c.id ? 'Hide history' : 'Sync history' }}
+                </button>
+                <button class="danger" (click)="disconnect(c)">Disconnect</button>
+              </div>
+            </div>
+            @if (expandedId() === c.id) { <app-sync-history [connectionId]="c.id" /> }
+          }
+        </div>
       </section>
+    }
+
+    @if (modalPlatform(); as mp) {
+      <div class="modal-backdrop" (click)="closeModal()">
+        <div class="modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+          <header class="modal-head">
+            <h2>Connect {{ platformLabel(mp) }}</h2>
+            <button class="x" (click)="closeModal()" aria-label="Close">×</button>
+          </header>
+
+          <p class="modal-lede">
+            Enter the credentials for your own {{ platformLabel(mp) }} app. We'll use them to fetch data
+            on your behalf and re-sync every couple of minutes.
+          </p>
+
+          <form [formGroup]="form" (ngSubmit)="submitModal()">
+            @if (mp === 'shopify') {
+              <div class="field">
+                <label for="shop">Shop domain</label>
+                <input id="shop" type="text" formControlName="shop" placeholder="my-store.myshopify.com" autocomplete="off" />
+              </div>
+            }
+
+            <div class="field">
+              <label for="appId">{{ mp === 'shopify' ? 'API key' : 'App ID' }}</label>
+              <input id="appId" type="text" formControlName="appId" autocomplete="off" />
+            </div>
+
+            <div class="field">
+              <label for="appSecret">{{ mp === 'shopify' ? 'API secret' : 'App Secret' }}</label>
+              <input id="appSecret" type="password" formControlName="appSecret" autocomplete="new-password" />
+              <small class="hint">Stored encrypted at rest. Never shared.</small>
+            </div>
+
+            <details class="help">
+              <summary>How do I get these?</summary>
+              @if (mp === 'facebook') {
+                <ol>
+                  <li>Go to <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> and create (or open) an app.</li>
+                  <li>In <em>App settings → Basic</em>, copy the App ID and App Secret.</li>
+                  <li>Under <em>Facebook Login → Settings</em>, add the Redirect URL shown below to "Valid OAuth Redirect URIs".</li>
+                </ol>
+              } @else {
+                <ol>
+                  <li>In your Shopify partner dashboard, create a custom app for your store.</li>
+                  <li>Copy the API key and API secret.</li>
+                  <li>Under App setup, add the Redirect URL below to "Allowed redirection URLs".</li>
+                </ol>
+              }
+            </details>
+
+            <div class="field">
+              <label for="redirect">Redirect URL</label>
+              <input id="redirect" type="text" formControlName="redirectUri" readonly />
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="since">Sync data from</label>
+                <input id="since" type="date" formControlName="since" />
+              </div>
+              <div class="field">
+                <label for="until">to</label>
+                <input id="until" type="date" formControlName="until" />
+              </div>
+            </div>
+
+            @if (modalError(); as e) { <div class="alert alert--error">{{ e }}</div> }
+
+            <div class="modal-actions">
+              <button type="button" class="ghost" (click)="closeModal()" [disabled]="submitting()">Cancel</button>
+              <button type="submit" class="primary" [disabled]="form.invalid || submitting()">
+                {{ submitting() ? "Starting…" : "Continue to " + platformLabel(mp) }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
     }
   `,
   styles: [`
     .page-head h1 { margin: 0 0 .25rem; color: var(--text); }
-    .muted { color: var(--text-muted); margin: 0 0 1rem; font-size: .9rem; }
-    h2, h3 { color: var(--text); }
+    .muted { color: var(--text-muted); margin: 0 0 1.25rem; font-size: .9rem; }
+    h2 { color: var(--text); }
 
-    .connect-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem; }
-    @media (max-width: 980px) { .connect-grid { grid-template-columns: 1fr; } }
+    .connect-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 2rem; }
+    @media (max-width: 720px) { .connect-grid { grid-template-columns: 1fr; } }
 
     .card {
       --brand: #4f46e5;
-      background: var(--card-bg);
-      padding: 1.1rem 1.2rem;
-      border-radius: .9rem;
-      border: 1px solid var(--card-bd);
-      cursor: pointer;
-      transition: transform .18s, border-color .15s, box-shadow .18s;
-      display: flex; flex-direction: column; gap: .65rem;
-      position: relative;
-      overflow: hidden;
+      background: var(--card-bg); padding: 1.1rem 1.2rem; border-radius: .9rem;
+      border: 1px solid var(--card-bd); transition: transform .18s, border-color .15s;
+      display: flex; flex-direction: column; gap: .65rem; position: relative; overflow: hidden;
     }
-    .card:hover { transform: translateY(-2px); border-color: var(--brand); box-shadow: 0 6px 18px rgba(15, 23, 42, .07); }
-    :host-context(html.dark) .card:hover { box-shadow: 0 6px 18px rgba(0, 0, 0, .35); }
     .card.connected { border-color: var(--brand); }
-    .card.connected::before {
-      content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--brand);
-    }
-    .card.selected { box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent); border-color: var(--brand); }
-    .card.has-expired::before { background: linear-gradient(90deg, var(--brand) 0%, var(--brand) 60%, #f59e0b 60%, #f59e0b 100%); }
-
-    .card-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+    .card.connected::before { content:""; position:absolute; top:0; left:0; right:0; height:3px; background:var(--brand); }
+    .card-top { display: flex; align-items: center; justify-content: space-between; }
     .brand { display: flex; align-items: center; gap: .55rem; }
-    .ico { font-size: 1.35rem; line-height: 1; }
+    .ico { font-size: 1.35rem; }
     .brand h2 { margin: 0; font-size: 1rem; }
-
-    .status {
-      display: flex; align-items: center; gap: .4rem;
-      background: color-mix(in srgb, #16a34a 12%, transparent);
-      color: #16a34a;
-      padding: .2rem .55rem; border-radius: 999px;
-      font-size: .72rem; font-weight: 500;
-    }
-    .status.warn { background: color-mix(in srgb, #f59e0b 14%, transparent); color: #b45309; }
-    .status--idle { background: var(--ghost-bg); color: var(--text-muted); }
-    .pulse {
-      width: 7px; height: 7px; border-radius: 50%; background: currentColor;
-      box-shadow: 0 0 0 0 currentColor;
-      animation: pulse 2s infinite;
-    }
-    @keyframes pulse {
-      0%   { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 50%, transparent); }
-      70%  { box-shadow: 0 0 0 6px color-mix(in srgb, currentColor 0%,  transparent); }
-      100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 0%,  transparent); }
-    }
-
     .blurb { color: var(--text-muted); font-size: .85rem; margin: 0; }
 
-    .account-strip { display: flex; align-items: center; gap: -.5rem; min-height: 2rem; }
-    .avatar {
-      width: 2rem; height: 2rem; border-radius: 50%;
-      background: var(--brand); color: #fff;
-      display: flex; align-items: center; justify-content: center;
-      font-size: .75rem; font-weight: 600;
-      border: 2px solid var(--card-bg);
-      margin-left: -.5rem;
-      position: relative;
+    .status {
+      display: inline-flex; align-items: center; gap: .4rem;
+      background: color-mix(in srgb, #16a34a 12%, transparent); color: #16a34a;
+      padding: .2rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 500;
     }
-    .avatar:first-child { margin-left: 0; }
-    .avatar.more { background: var(--ghost-bg); color: var(--text-muted); font-size: .7rem; }
-    .avatar.expired { background: #f59e0b; }
-    .avatar.expired::after {
-      content: "!"; position: absolute; top: -3px; right: -3px;
-      width: 12px; height: 12px; border-radius: 50%;
-      background: #dc2626; color: #fff; font-size: .55rem; line-height: 12px;
-      text-align: center; font-weight: 700;
-    }
+    .status--idle { background: var(--ghost-bg); color: var(--text-muted); }
+    .pulse { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 
-    .stats { display: flex; align-items: baseline; gap: 1rem; margin-top: -.15rem; }
-    .stats strong { font-size: 1.25rem; color: var(--text); font-weight: 600; margin-right: .25rem; }
-    .stats .muted { color: var(--text-muted); font-size: .8rem; }
-    .expired-note { color: #b45309; font-size: .8rem; }
-    .expired-note strong { color: #b45309; font-size: 1rem; }
-
-    .card-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: auto; }
-
-    button.primary {
-      background: #4f46e5; color: #fff; border: 0; padding: .5rem .9rem;
-      border-radius: .5rem; cursor: pointer; font-weight: 500; font-size: .85rem;
-      flex: 1; min-width: 8rem;
-    }
+    .card-actions { margin-top: auto; }
+    button.primary { background: #4f46e5; color: #fff; border: 0; padding: .55rem 1rem;
+      border-radius: .5rem; cursor: pointer; font-weight: 500; font-size: .9rem; }
     button.primary:hover:not(:disabled) { background: #4338ca; }
     button.primary:disabled { opacity: .55; cursor: not-allowed; }
-    button.primary-sm { flex: 0 0 auto; min-width: 0; padding: .3rem .7rem; font-size: .75rem; background: #b45309; }
-    button.primary-sm:hover:not(:disabled) { background: #92400e; }
-    button.ghost {
-      background: transparent; color: var(--text-muted); border: 1px solid var(--card-bd);
-      padding: .5rem .9rem; border-radius: .5rem; cursor: pointer; font-size: .85rem;
-      font-weight: 500;
-    }
-    button.ghost:hover { background: var(--ghost-bg); color: var(--text); }
-    button.danger {
-      background: transparent; color: #dc2626; border: 1px solid #fecaca;
-      padding: .35rem .75rem; border-radius: .375rem; cursor: pointer; font-size: .8rem;
-    }
+    button.ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--card-bd);
+      padding: .5rem .9rem; border-radius: .5rem; cursor: pointer; font-size: .85rem; }
+    button.ghost:hover:not(:disabled) { background: var(--ghost-bg); color: var(--text); }
+    button.danger { background: transparent; color: #dc2626; border: 1px solid #fecaca;
+      padding: .35rem .75rem; border-radius: .375rem; cursor: pointer; font-size: .8rem; }
     button.danger:hover { background: #fef2f2; }
-    :host-context(html.dark) button.danger { border-color: #7f1d1d; }
-    :host-context(html.dark) button.danger:hover { background: #450a0a; }
 
-    .chip-clear {
-      background: var(--accent-soft); color: var(--accent); border: 0;
-      padding: .25rem .7rem; border-radius: 999px; cursor: pointer;
-      font-size: .75rem; font-weight: 500;
-    }
-
-    .shop-row { display: flex; gap: .5rem; flex: 1; min-width: 100%; }
-    .shop-row input {
-      flex: 1; min-width: 0; padding: .5rem .75rem;
-      border: 1px solid var(--input-bd); border-radius: .5rem;
-      background: var(--card-bg); color: var(--text); font-size: .85rem; outline: none;
-    }
-    .shop-row input:focus { border-color: #4f46e5; }
-    .shop-row button { flex: 0 0 auto; min-width: auto; }
-
-    .list-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .75rem; flex-wrap: wrap; }
-    .list-head h2 { margin: 0; font-size: 1rem; }
-
-    .empty-filter { display: flex; flex-direction: column; align-items: center; gap: .75rem; padding: 2rem 1rem; background: var(--card-bg); border: 1px dashed var(--card-bd); border-radius: .65rem; }
-    .empty-filter p { margin: 0; }
-    .empty-filter button { max-width: 16rem; }
+    .connections-list { margin-top: 1.5rem; }
+    .connections-list h2 { margin: 0 0 .75rem; font-size: 1rem; }
     .conn-rows { display: flex; flex-direction: column; gap: .5rem; }
     .conn-row {
       display: flex; align-items: center; justify-content: space-between; gap: 1rem;
       background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: .65rem;
       padding: .75rem 1rem;
-      transition: border-color .15s;
     }
-    .conn-row:hover { border-color: var(--accent); }
     .conn-left { display: flex; align-items: center; gap: .85rem; min-width: 0; }
+    .avatar {
+      --brand: #4f46e5;
+      width: 2rem; height: 2rem; border-radius: 50%; background: var(--brand);
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      font-size: .75rem; font-weight: 600;
+    }
     .acct-name { font-weight: 500; color: var(--text); }
-    .acct-sub { display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: var(--text-muted); margin-top: .15rem; }
-    .acct-sub .dot { color: var(--muted); }
+    .acct-sub { display: flex; align-items: center; gap: .4rem; font-size: .8rem; color: var(--text-muted); margin-top: .15rem; flex-wrap: wrap; }
     .muted-sm { color: var(--text-muted); font-size: .8rem; }
     .conn-right { display: flex; align-items: center; gap: .65rem; }
 
-    .badge { padding: .12rem .5rem; border-radius: 999px; font-size: .7rem; font-weight: 500; text-transform: capitalize; }
+    .badge { padding: .12rem .5rem; border-radius: 999px; font-size: .7rem; text-transform: capitalize; }
     .badge--facebook { background: #dbeafe; color: #1e40af; }
-    .badge--tiktok   { background: #fce7f3; color: #9d174d; }
     .badge--shopify  { background: #dcfce7; color: #166534; }
-
     .status-tag { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .6rem; border-radius: 999px; font-size: .72rem; font-weight: 500; text-transform: capitalize; }
     .status-tag .dot-sm { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
     .status--active  { background: #dcfce7; color: #166534; }
+    .status--pending { background: #fef3c7; color: #92400e; }
     .status--expired { background: #fef3c7; color: #92400e; }
     .status--revoked { background: #fee2e2; color: #991b1b; }
-    .status--failed  { background: #fee2e2; color: #991b1b; }
-    :host-context(html.dark) .status--failed { background: #7f1d1d; color: #fca5a5; }
-    .conn-row.row-failed { border-color: #fca5a5; background: color-mix(in srgb, #fee2e2 30%, var(--card-bg)); }
-    :host-context(html.dark) .conn-row.row-failed { background: color-mix(in srgb, #7f1d1d 30%, var(--card-bg)); border-color: #b91c1c; }
+    .conn-row.row-failed { border-color: #fca5a5; }
     .sync-err { margin-top: .3rem; color: #b91c1c; font-size: .72rem; max-width: 38rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    :host-context(html.dark) .sync-err { color: #fca5a5; }
-    .load-pill {
-      display: inline-flex; align-items: center; gap: .5rem;
-      padding: .45rem .85rem; border-radius: 999px;
-      font-size: .82rem; font-weight: 500; margin-bottom: 1rem;
-      background: #fee2e2; color: #b91c1c;
-    }
-    :host-context(html.dark) .load-pill { background: #7f1d1d; color: #fca5a5; }
+
+    .load-pill { display: inline-flex; align-items: center; gap: .5rem; padding: .45rem .85rem;
+      border-radius: 999px; font-size: .82rem; margin-bottom: 1rem; background: #fee2e2; color: #b91c1c; }
     .load-pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
     .pill-retry { background: transparent; color: currentColor; padding: 0 .25rem; font-size: .78rem; text-decoration: underline; border: 0; cursor: pointer; }
-    :host-context(html.dark) .status--active  { background: #14532d; color: #86efac; }
-    :host-context(html.dark) .status--expired { background: #78350f; color: #fcd34d; }
-    :host-context(html.dark) .status--revoked { background: #7f1d1d; color: #fca5a5; }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .55);
+      display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+    .modal { background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: .75rem;
+      padding: 1.5rem; max-width: 32rem; width: 100%; max-height: 90vh; overflow-y: auto; }
+    .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
+    .modal-head h2 { margin: 0; font-size: 1.15rem; }
+    .x { background: transparent; border: 0; font-size: 1.6rem; line-height: 1; color: var(--text-muted); cursor: pointer; }
+    .modal-lede { color: var(--text-muted); font-size: .88rem; margin: 0 0 1.1rem; line-height: 1.5; }
+    .modal .field { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .85rem; }
+    .modal label { font-size: .82rem; font-weight: 500; color: var(--text); }
+    .modal input {
+      padding: .6rem .8rem; border: 1px solid var(--input-bd); border-radius: .5rem;
+      background: var(--card-bg); color: var(--text); font-size: .9rem; outline: none;
+    }
+    .modal input:focus { border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.15); }
+    .modal input[readonly] { background: var(--ghost-bg); color: var(--text-muted); }
+    .hint { color: var(--text-muted); font-size: .72rem; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .help { margin-bottom: .85rem; }
+    .help summary { cursor: pointer; font-size: .82rem; color: #4f46e5; font-weight: 500; }
+    .help ol { padding-left: 1.2rem; margin: .5rem 0 0; font-size: .82rem; color: var(--text-muted); line-height: 1.6; }
+    .help a { color: #4f46e5; }
+    .alert { padding: .65rem .85rem; border-radius: .5rem; font-size: .85rem; margin-bottom: .75rem; }
+    .alert--error { background: #fef2f2; color: #b91c1c; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .5rem; }
   `],
 })
 export class ConnectionsComponent implements OnInit {
   private readonly api = inject(ConnectionsService);
   private readonly status = inject(StatusBarService);
   private readonly route = inject(ActivatedRoute);
-
-  readonly loadError = signal<string | null>(null);
-  readonly expandedId = signal<string | null>(null);
-
-  toggleHistory(id: string): void {
-    this.expandedId.set(this.expandedId() === id ? null : id);
-  }
+  private readonly fb = inject(FormBuilder);
 
   readonly platforms: PlatformInfo[] = [
-    { key: "facebook", label: "Facebook Ads", icon: "📘", blurb: "Campaigns, spend, ROAS, frequency.",     brand: "#1877F2" },
-    { key: "tiktok",   label: "TikTok Ads",   icon: "🎵", blurb: "Campaigns, spend, complete-payment ROAS.", brand: "#FE2C55" },
-    { key: "shopify",  label: "Shopify",      icon: "🛒", blurb: "Real orders and revenue.",                 brand: "#16a34a" },
+    { key: "facebook", label: "Facebook Ads", icon: "📘", blurb: "Campaigns, spend, ROAS, frequency.", brand: "#1877F2",
+      credentialsHelpUrl: "https://developers.facebook.com/apps/" },
+    { key: "shopify",  label: "Shopify",      icon: "🛒", blurb: "Real orders and revenue from your store.", brand: "#16a34a",
+      credentialsHelpUrl: "https://shopify.dev/docs/apps" },
   ];
 
   readonly connections = signal<Connection[]>([]);
-  readonly loading = signal(false);
-  readonly shopDomain = signal("");
-  readonly selectedPlatform = signal<Platform | null>(null);
+  readonly loadError = signal<string | null>(null);
+  readonly expandedId = signal<string | null>(null);
+  readonly modalPlatform = signal<Platform | null>(null);
+  readonly submitting = signal(false);
+  readonly modalError = signal<string | null>(null);
 
-  readonly filtered = computed(() => {
-    const p = this.selectedPlatform();
-    if (!p) return this.connections();
-    return this.connections().filter((c) => c.platform === p);
+  readonly form = this.fb.nonNullable.group({
+    shop: [""],
+    appId: ["", [Validators.required]],
+    appSecret: ["", [Validators.required]],
+    redirectUri: [""],
+    since: [isoDaysAgo(30)],
+    until: [isoDaysAgo(0)],
   });
-
-  readonly listHeading = computed(() => {
-    const p = this.selectedPlatform();
-    if (!p) return "All connections";
-    const info = this.platforms.find((x) => x.key === p);
-    return `${info?.label ?? p} · ${this.filtered().length} ${this.filtered().length === 1 ? 'account' : 'accounts'}`;
-  });
-
-  readonly selectedPlatformLabel = computed(() => {
-    const p = this.selectedPlatform();
-    return this.platforms.find((x) => x.key === p)?.label ?? "";
-  });
-
-  connectSelected(): void {
-    const p = this.selectedPlatform();
-    if (!p) return;
-    if (p === "shopify") {
-      this.status.info("Enter your shop domain in the Shopify card above.");
-      return;
-    }
-    this.connect(p);
-  }
 
   ngOnInit(): void {
     this.handleCallbackQuery();
     this.reload();
   }
 
-  asValue(e: Event): string {
-    return (e.target as HTMLInputElement).value.trim().toLowerCase();
+  countFor(p: Platform): number {
+    return this.connections().filter((c) => c.platform === p).length;
   }
 
-  countFor(platform: Platform): number {
-    return this.connections().filter((c) => c.platform === platform).length;
+  brandFor(p: Platform): string {
+    return this.platforms.find((x) => x.key === p)?.brand ?? "#4f46e5";
   }
 
-  expiredFor(platform: Platform): number {
-    return this.connections().filter((c) => c.platform === platform && c.status === "expired").length;
-  }
-
-  failedFor(platform: Platform): number {
-    return this.connections().filter((c) => c.platform === platform && c.lastSyncOk === false).length;
-  }
-
-  formatSync(c: Connection): string {
-    if (!c.lastSyncAt) return "Never synced";
-    return `Last sync ${this.formatDate(c.lastSyncAt)}`;
-  }
-
-  accountsFor(platform: Platform): Connection[] {
-    return this.connections().filter((c) => c.platform === platform);
-  }
-
-  brandFor(platform: Platform): string {
-    return this.platforms.find((p) => p.key === platform)?.brand ?? "#4f46e5";
+  platformLabel(p: Platform): string {
+    return this.platforms.find((x) => x.key === p)?.label ?? p;
   }
 
   initials(c: Connection): string {
     const src = c.accountName ?? c.accountId;
-    return src
-      .replace(/^act_/i, "")
-      .split(/[\s\-_.]+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? "")
-      .join("") || "?";
+    return src.replace(/^act_/i, "").split(/[\s\-_.]+/).filter(Boolean)
+      .slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
   }
 
-  onCardClick(p: Platform): void {
-    this.selectedPlatform.set(this.selectedPlatform() === p ? null : p);
+  formatSync(c: Connection): string {
+    if (!c.lastSyncAt) return "Never synced";
+    return `Last sync ${this.shortDate(c.lastSyncAt)}`;
   }
 
-  selectPlatform(p: Platform | null): void {
-    this.selectedPlatform.set(p);
-  }
-
-  formatDate(iso: string): string {
+  shortDate(iso: string): string {
     try {
       const d = new Date(iso);
       const days = Math.floor((Date.now() - d.getTime()) / 86_400_000);
       if (days === 0) return "today";
       if (days === 1) return "yesterday";
-      if (days < 30) return `${days} days ago`;
+      if (days < 30) return `${days}d ago`;
       return d.toLocaleDateString();
     } catch { return ""; }
   }
 
+  toggleHistory(id: string): void {
+    this.expandedId.set(this.expandedId() === id ? null : id);
+  }
+
   async reload(): Promise<void> {
-    this.loading.set(true);
     this.loadError.set(null);
     try {
       this.connections.set(await this.api.list());
     } catch {
       this.loadError.set("Could not load connections. Backend may be unreachable.");
-    } finally {
-      this.loading.set(false);
     }
   }
 
-  async connect(platform: Exclude<Platform, "shopify">): Promise<void> {
-    try {
-      const url = await this.api.getConnectUrl(platform);
-      window.location.href = url;
-    } catch {
-      this.status.error(`Could not start ${platform} connect flow`);
+  openModal(platform: Platform): void {
+    this.modalError.set(null);
+    this.form.reset({
+      shop: "",
+      appId: "",
+      appSecret: "",
+      redirectUri: `${window.location.origin}/api/${platform}/callback`,
+      since: isoDaysAgo(30),
+      until: isoDaysAgo(0),
+    });
+    if (platform === "shopify") {
+      this.form.controls.shop.setValidators([Validators.required]);
+    } else {
+      this.form.controls.shop.clearValidators();
     }
+    this.form.controls.shop.updateValueAndValidity();
+    this.modalPlatform.set(platform);
   }
 
-  async reconnect(c: Connection): Promise<void> {
-    if (c.platform === "shopify") return;
-    this.status.info(`Reconnecting ${c.accountName ?? c.accountId}…`);
-    await this.connect(c.platform);
+  closeModal(): void {
+    this.modalPlatform.set(null);
+    this.modalError.set(null);
   }
 
-  async connectShopify(): Promise<void> {
-    const shop = this.shopDomain();
-    if (!shop) return;
+  async submitModal(): Promise<void> {
+    const platform = this.modalPlatform();
+    if (!platform || this.form.invalid) return;
+    this.submitting.set(true);
+    this.modalError.set(null);
     try {
-      const url = await this.api.getConnectUrl("shopify", { shop });
-      window.location.href = url;
+      const v = this.form.getRawValue();
+      const res = await this.api.connectStart(platform, {
+        appId: v.appId.trim(),
+        appSecret: v.appSecret.trim(),
+        redirectUri: v.redirectUri || undefined,
+        since: v.since || undefined,
+        until: v.until || undefined,
+        shop: platform === "shopify" ? v.shop.trim().toLowerCase() : undefined,
+      });
+      window.location.href = res.url;
     } catch (err: any) {
-      this.status.error(err?.error?.error ?? "Could not start Shopify connect flow");
+      this.modalError.set(err?.error?.error ?? `Could not start ${platform} connect flow`);
+    } finally {
+      this.submitting.set(false);
     }
   }
 
@@ -515,7 +427,7 @@ export class ConnectionsComponent implements OnInit {
 
   private handleCallbackQuery(): void {
     const q = this.route.snapshot.queryParamMap;
-    for (const platform of ["facebook", "tiktok", "shopify"] as const) {
+    for (const platform of ["facebook", "shopify"] as const) {
       const v = q.get(platform);
       if (!v) continue;
       if (v === "connected") this.status.success(`${platform} connected!`);

@@ -1,8 +1,7 @@
 import { Router, Request, Response } from "express";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
-import { requireRole } from "../../middleware/requireRole";
 import { prisma } from "../../db/client";
-import { encrypt } from "../../utils/encryption";
+import { encrypt, decrypt } from "../../utils/encryption";
 import { signState, verifyState } from "../../utils/oauthState";
 import {
   exchangeCodeForToken,
@@ -15,26 +14,69 @@ const router = Router();
 
 const SCOPES = "read_orders,read_products,read_analytics";
 
-/** Step 1: build the install URL for a given shop domain. */
-router.get("/connect", requireAuth, requireRole("media_buyer"), (req: Request, res: Response) => {
-  const { userId, workspaceId } = req as AuthedRequest;
-  const shop = String(req.query.shop ?? "");
+function frontendUrl(): string {
+  return process.env.FRONTEND_URL ?? "http://localhost:4200";
+}
 
-  if (!isValidShopDomain(shop)) {
+/**
+ * Step 1: user supplies THEIR Shopify custom-app credentials + shop domain +
+ * historical sync window. We persist a pending Connection and return the
+ * OAuth authorize URL built from THEIR API key.
+ */
+router.post("/connect-start", requireAuth, async (req: Request, res: Response) => {
+  const { userId } = req as AuthedRequest;
+  const { apiKey, apiSecret, redirectUri, shop, since, until } = (req.body ?? {}) as {
+    apiKey?: string; apiSecret?: string; redirectUri?: string; shop?: string; since?: string; until?: string;
+  };
+
+  if (typeof shop !== "string" || !isValidShopDomain(shop)) {
     return res.status(400).json({ error: "shop must be a valid *.myshopify.com domain" });
   }
+  if (typeof apiKey !== "string" || apiKey.trim().length < 16) {
+    return res.status(400).json({ error: "api_key_required" });
+  }
+  if (typeof apiSecret !== "string" || apiSecret.trim().length < 16) {
+    return res.status(400).json({ error: "api_secret_required" });
+  }
+  const effectiveRedirect = (typeof redirectUri === "string" && redirectUri.length > 0)
+    ? redirectUri
+    : `${frontendUrl().replace(/\/$/, "")}/api/shopify/callback`;
 
-  const params = new URLSearchParams({
-    client_id: process.env.SHOPIFY_API_KEY ?? "",
-    scope: SCOPES,
-    redirect_uri: process.env.SHOPIFY_REDIRECT_URI ?? "",
-    state: signState({ userId, workspaceId, provider: "shopify" }),
+  // Persist as pending so the callback can find these credentials.
+  const connection = await prisma.connection.upsert({
+    where: { userId_platform_accountId: { userId, platform: "shopify", accountId: shop } },
+    update: {
+      status: "pending",
+      appId: apiKey,
+      appSecret: encrypt(apiSecret),
+      redirectUri: effectiveRedirect,
+      syncSince: since ? new Date(since) : null,
+      syncUntil: until ? new Date(until) : null,
+    },
+    create: {
+      userId,
+      platform: "shopify",
+      accountId: shop,
+      accountName: shop,
+      accessToken: "",
+      status: "pending",
+      appId: apiKey,
+      appSecret: encrypt(apiSecret),
+      redirectUri: effectiveRedirect,
+      syncSince: since ? new Date(since) : null,
+      syncUntil: until ? new Date(until) : null,
+    },
   });
 
-  res.json({ url: `https://${shop}/admin/oauth/authorize?${params.toString()}` });
+  const params = new URLSearchParams({
+    client_id: apiKey,
+    scope: SCOPES,
+    redirect_uri: effectiveRedirect,
+    state: signState({ userId, connectionId: connection.id, provider: "shopify" }),
+  });
+  res.json({ connectionId: connection.id, url: `https://${shop}/admin/oauth/authorize?${params.toString()}` });
 });
 
-/** Step 2: Shopify redirects here with code + signed query. */
 router.get("/callback", async (req: Request, res: Response) => {
   const query = req.query as Record<string, string | undefined>;
   const { code, shop, state } = query;
@@ -45,43 +87,38 @@ router.get("/callback", async (req: Request, res: Response) => {
   if (!isValidShopDomain(shop)) {
     return res.status(400).json({ error: "Invalid shop domain" });
   }
-  if (!verifyCallbackHmac(query)) {
-    return res.status(400).json({ error: "HMAC verification failed" });
-  }
 
-  let userId: string;
-  let workspaceId: string;
+  let connectionId: string;
   try {
-    const decoded = verifyState(state);
+    const decoded = verifyState(state) as { userId: string; connectionId: string; provider: string };
     if (decoded.provider !== "shopify") throw new Error("provider mismatch");
-    userId = decoded.userId;
-    workspaceId = decoded.workspaceId;
+    connectionId = decoded.connectionId;
   } catch {
     return res.status(400).json({ error: "Invalid or expired state" });
   }
 
+  const pending = await prisma.connection.findUnique({ where: { id: connectionId } });
+  if (!pending || pending.platform !== "shopify" || !pending.appId || !pending.appSecret) {
+    return res.status(404).json({ error: "Pending connection not found" });
+  }
+  const decryptedSecret = decrypt(pending.appSecret);
+  if (!verifyCallbackHmac(query, decryptedSecret)) {
+    return res.status(400).json({ error: "HMAC verification failed" });
+  }
+
   try {
-    const accessToken = await exchangeCodeForToken(shop, code);
-
-    await prisma.connection.upsert({
-      where: {
-        userId_platform_accountId: { userId, platform: "shopify", accountId: shop },
-      },
-      update: { accessToken: encrypt(accessToken), status: "active", workspaceId },
-      create: {
-        userId,
-        workspaceId,
-        platform: "shopify",
-        accountId: shop,
-        accountName: shop,
-        accessToken: encrypt(accessToken),
-      },
+    const accessToken = await exchangeCodeForToken(shop, code, {
+      apiKey: pending.appId,
+      apiSecret: decryptedSecret,
     });
-
-    res.redirect(`${process.env.FRONTEND_URL}/connections?shopify=connected`);
+    await prisma.connection.update({
+      where: { id: pending.id },
+      data: { accessToken: encrypt(accessToken), status: "active" },
+    });
+    res.redirect(`${frontendUrl()}/connections?shopify=connected`);
   } catch (err) {
     logger.error({ err }, "shopify callback failed");
-    res.redirect(`${process.env.FRONTEND_URL}/connections?shopify=error`);
+    res.redirect(`${frontendUrl()}/connections?shopify=error`);
   }
 });
 

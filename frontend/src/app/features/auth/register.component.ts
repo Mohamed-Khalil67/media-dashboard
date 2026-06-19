@@ -131,6 +131,8 @@ import { StatusBarService } from "../../core/status-bar.service";
       border-left: 4px solid currentColor;
     }
     .alert--error { background: #fef2f2; color: #b91c1c; }
+    .alert--invite { background: var(--accent-soft); color: var(--accent); display: flex; flex-direction: column; gap: .25rem; padding: .75rem 1rem; border-radius: .5rem; margin-bottom: 1rem; }
+    .alert--invite strong { color: var(--accent); }
     .alert-icon {
       width: 1.4rem; height: 1.4rem; border-radius: 50%; background: currentColor;
       color: #fff; display: flex; align-items: center; justify-content: center;

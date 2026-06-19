@@ -63,7 +63,7 @@ interface Draft {
       } @else if (rules().length > 0) {
         <table>
           <thead>
-            <tr><th>Metric</th><th>Operator</th><th>Threshold</th><th>Enabled</th><th></th></tr>
+            <tr><th scope="col">Metric</th><th scope="col">Operator</th><th scope="col">Threshold</th><th scope="col">Enabled</th><th scope="col"><span class="sr-only">Actions</span></th></tr>
           </thead>
           <tbody>
             @for (r of rules(); track r.id) {

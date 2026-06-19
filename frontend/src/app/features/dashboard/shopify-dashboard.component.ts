@@ -163,7 +163,7 @@ import { ShopifySubtabsComponent } from "./shopify-subtabs.component";
                   <span class="rank">{{ i + 1 }}</span>
                   <span class="rank-title" [title]="p.sku ?? ''">{{ p.title }}</span>
                   <span class="rank-meta">{{ p.units }} units</span>
-                  <span class="rank-num"><strong>{{ p.revenue | currency: "USD":"symbol":"1.0-0" }}</strong></span>
+                  <span class="rank-num"><strong>{{ p.revenue | currency: "EGP":"symbol":"1.0-0" }}</strong></span>
                 </li>
               }
             </ol>
@@ -184,7 +184,7 @@ import { ShopifySubtabsComponent } from "./shopify-subtabs.component";
                   <span class="rank">{{ i + 1 }}</span>
                   <span class="rank-title">{{ c.email }}</span>
                   <span class="rank-meta">{{ c.orders }} {{ c.orders === 1 ? "order" : "orders" }}</span>
-                  <span class="rank-num"><strong>{{ c.revenue | currency: "USD":"symbol":"1.0-0" }}</strong></span>
+                  <span class="rank-num"><strong>{{ c.revenue | currency: "EGP":"symbol":"1.0-0" }}</strong></span>
                 </li>
               }
             </ol>

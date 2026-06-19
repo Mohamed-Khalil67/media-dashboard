@@ -1,0 +1,112 @@
+import { ChangeDetectionStrategy, Component } from "@angular/core";
+import { RouterLink } from "@angular/router";
+
+@Component({
+  selector: "app-landing",
+  imports: [RouterLink],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <div class="bg">
+      <span class="tv" style="left:5%;top:12%;font-size:4rem;animation-delay:0s;animation-duration:9s">📺</span>
+      <span class="tv" style="left:35%;top:30%;font-size:5.5rem;animation-delay:3s;animation-duration:8s">📺</span>
+      <span class="tv" style="left:70%;top:15%;font-size:6rem;animation-delay:2.2s;animation-duration:10s">📺</span>
+      <span class="tv" style="left:90%;top:82%;font-size:4.5rem;animation-delay:1s;animation-duration:13s">📺</span>
+      <span class="tv" style="left:25%;top:80%;font-size:3rem;animation-delay:2.5s;animation-duration:14s">📺</span>
+      <span class="tv" style="left:62%;top:55%;font-size:5rem;animation-delay:3.5s;animation-duration:8s">📺</span>
+    </div>
+
+    <main class="wrap">
+      <div class="brand">📺 Media Dashboard</div>
+
+      <section class="hero">
+        <h1>One dashboard for your <span class="grad">Facebook Ads</span> and <span class="grad">Shopify</span>.</h1>
+        <p class="lede">
+          Bring your own platform credentials, pick a date range, and watch a unified picture of spend,
+          orders, and ROAS update every couple of minutes — automatically.
+        </p>
+
+        <div class="ctas">
+          <a routerLink="/register" class="btn btn-primary">Sign up free</a>
+          <a routerLink="/login" class="btn btn-ghost">Sign in</a>
+        </div>
+      </section>
+
+      <section class="features">
+        <div class="feature">
+          <div class="ico">🔌</div>
+          <h3>Connect your own apps</h3>
+          <p>Paste your Facebook App ID and Shopify API key. No shared accounts, no waiting for review.</p>
+        </div>
+        <div class="feature">
+          <div class="ico">⏱️</div>
+          <h3>Always fresh</h3>
+          <p>Background sync every couple of minutes keeps spend, revenue, and ROAS current without lifting a finger.</p>
+        </div>
+        <div class="feature">
+          <div class="ico">🔒</div>
+          <h3>Ephemeral by design</h3>
+          <p>Log out and we erase every byte we pulled. Your account stays — your data doesn't linger.</p>
+        </div>
+      </section>
+
+      <footer class="foot">Privacy-first. No tracking pixels. Your data, your control.</footer>
+    </main>
+  `,
+  styles: [`
+    :host {
+      display: block; min-height: 100vh;
+      background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+      color: #e2e8f0; position: relative; overflow-x: hidden;
+    }
+    .bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
+    .tv {
+      position: absolute; opacity: .06; user-select: none;
+      animation: floatTV linear infinite;
+      filter: grayscale(1) brightness(2);
+    }
+    @keyframes floatTV {
+      0%   { transform: translateY(0px) rotate(-4deg); }
+      50%  { transform: translateY(-22px) rotate(3deg); }
+      100% { transform: translateY(0px) rotate(-4deg); }
+    }
+
+    .wrap { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+    .brand { font-weight: 700; font-size: 1.1rem; color: #f1f5f9; }
+
+    .hero { text-align: center; margin: 5rem auto 4rem; max-width: 760px; }
+    .hero h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 800; line-height: 1.1; margin: 0 0 1.25rem; color: #f8fafc; }
+    .grad {
+      background: linear-gradient(135deg, #818cf8, #c084fc);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .lede { font-size: 1.1rem; color: #cbd5e1; line-height: 1.6; margin: 0 auto 2rem; max-width: 600px; }
+
+    .ctas { display: flex; gap: .85rem; justify-content: center; flex-wrap: wrap; }
+    .btn {
+      padding: .85rem 1.75rem; border-radius: .65rem; font-weight: 600; text-decoration: none;
+      font-size: 1rem; transition: opacity .15s, transform .1s; display: inline-block;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff;
+      box-shadow: 0 8px 24px rgba(79, 70, 229, .4);
+    }
+    .btn-primary:hover { opacity: .92; transform: translateY(-1px); }
+    .btn-ghost { background: rgba(255,255,255,.05); color: #e2e8f0; border: 1px solid rgba(255,255,255,.15); }
+    .btn-ghost:hover { background: rgba(255,255,255,.1); }
+
+    .features {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1.5rem; margin: 4rem 0;
+    }
+    .feature {
+      background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+      border-radius: .85rem; padding: 1.5rem; backdrop-filter: blur(8px);
+    }
+    .ico { font-size: 1.8rem; margin-bottom: .65rem; }
+    .feature h3 { margin: 0 0 .4rem; font-size: 1.05rem; color: #f1f5f9; font-weight: 600; }
+    .feature p { margin: 0; color: #94a3b8; font-size: .9rem; line-height: 1.55; }
+
+    .foot { text-align: center; color: #64748b; font-size: .85rem; margin-top: 3rem; }
+  `],
+})
+export class LandingComponent {}

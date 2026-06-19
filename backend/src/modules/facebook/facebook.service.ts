@@ -6,7 +6,7 @@ const GRAPH_VERSION = process.env.FB_GRAPH_VERSION ?? "v21.0";
 const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
 
 export interface FacebookInsight {
-  date_start?: string;   // "YYYY-MM-DD" — present when time_increment=1
+  date_start?: string;
   date_stop?: string;
   spend?: string;
   impressions?: string;
@@ -20,25 +20,29 @@ export interface FacebookCampaign {
   id: string;
   name: string;
   status: string;
-  created_time?: string; // ISO-8601 string from Graph API
+  created_time?: string;
   insights?: { data?: FacebookInsight[] };
 }
 
-export async function exchangeCodeForToken(code: string): Promise<string> {
+export interface AppCredentials {
+  appId: string;
+  appSecret: string;
+  redirectUri: string;
+}
+
+/**
+ * Exchange the OAuth `code` for a long-lived access token using the
+ * user-supplied developer-app credentials (stored on their Connection row).
+ */
+export async function exchangeCodeForToken(code: string, creds: AppCredentials): Promise<string> {
   const short = await axios.get(`${GRAPH_BASE}/oauth/access_token`, {
-    params: {
-      client_id: process.env.FB_APP_ID,
-      client_secret: process.env.FB_APP_SECRET,
-      redirect_uri: process.env.FB_REDIRECT_URI,
-      code,
-    },
+    params: { client_id: creds.appId, client_secret: creds.appSecret, redirect_uri: creds.redirectUri, code },
   });
-  // Swap the ~2-hour token for a ~60-day long-lived one so background sync keeps working.
   const long = await axios.get(`${GRAPH_BASE}/oauth/access_token`, {
     params: {
       grant_type: "fb_exchange_token",
-      client_id: process.env.FB_APP_ID,
-      client_secret: process.env.FB_APP_SECRET,
+      client_id: creds.appId,
+      client_secret: creds.appSecret,
       fb_exchange_token: short.data.access_token,
     },
   });
@@ -52,13 +56,13 @@ export async function listAdAccounts(accessToken: string): Promise<Array<{ id: s
   return res.data.data ?? [];
 }
 
-const SYNC_LOOKBACK_DAYS = Number(process.env.FB_SYNC_LOOKBACK_DAYS ?? 30);
+const DEFAULT_LOOKBACK_DAYS = Number(process.env.FB_SYNC_LOOKBACK_DAYS ?? 30);
 
 export async function fetchCampaigns(connection: Connection): Promise<FacebookCampaign[]> {
   const token = decrypt(connection.accessToken);
-  // time_increment(1) returns one row per day → enables custom date filters.
-  // date_preset(last_30d) caps the lookback so we don't fetch the whole history.
-  const insightFields = `insights.date_preset(last_${SYNC_LOOKBACK_DAYS}d).time_increment(1){date_start,spend,impressions,clicks,actions,purchase_roas,frequency}`;
+  // If the user picked a since/until window at connect time, honor it via time_range.
+  // Otherwise fall back to the rolling lookback preset.
+  const insightFields = buildInsightFields(connection);
   const res = await axios.get(`${GRAPH_BASE}/${connection.accountId}/campaigns`, {
     params: {
       access_token: token,
@@ -69,20 +73,31 @@ export async function fetchCampaigns(connection: Connection): Promise<FacebookCa
   return res.data.data ?? [];
 }
 
-/** Extract numeric purchase ROAS from Facebook's nested actions array. */
+function buildInsightFields(connection: Connection): string {
+  const metrics = "date_start,spend,impressions,clicks,actions,purchase_roas,frequency";
+  if (connection.syncSince && connection.syncUntil) {
+    const since = isoDate(connection.syncSince);
+    const until = isoDate(connection.syncUntil);
+    return `insights.time_range({since:"${since}",until:"${until}"}).time_increment(1){${metrics}}`;
+  }
+  return `insights.date_preset(last_${DEFAULT_LOOKBACK_DAYS}d).time_increment(1){${metrics}}`;
+}
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 export function extractPurchaseRoas(insight: FacebookInsight | undefined): number {
   const raw = insight?.purchase_roas?.find((r) => r.action_type === "omni_purchase")?.value
     ?? insight?.purchase_roas?.[0]?.value;
   return raw ? Number(raw) : 0;
 }
 
-/** Extract purchase count from the actions array. */
 export function extractPurchases(insight: FacebookInsight | undefined): number {
   const raw = insight?.actions?.find((a) => a.action_type === "purchase")?.value;
   return raw ? Number(raw) : 0;
 }
 
-/** Pause or resume a Facebook campaign. Requires ads_management scope. */
 export async function setCampaignStatus(connection: Connection, externalCampaignId: string, status: "PAUSED" | "ACTIVE"): Promise<void> {
   const token = decrypt(connection.accessToken);
   await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, {
@@ -90,7 +105,6 @@ export async function setCampaignStatus(connection: Connection, externalCampaign
   });
 }
 
-/** Rename a Facebook campaign. Requires ads_management scope. */
 export async function renameCampaign(connection: Connection, externalCampaignId: string, name: string): Promise<void> {
   const token = decrypt(connection.accessToken);
   await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, {
@@ -98,15 +112,6 @@ export async function renameCampaign(connection: Connection, externalCampaignId:
   });
 }
 
-/**
- * Update the budget of a Facebook campaign. Pass either `dailyBudget` or
- * `lifetimeBudget` (or both — Graph API will accept and FB only enforces one
- * is active per campaign based on `pacing_type` / `bid_strategy` setup).
- *
- * Values are passed in MAJOR units (e.g. dollars/EGP) and converted to MINOR
- * units (cents/piastres) here, because Graph API budget fields are minor-unit
- * integers. The caller's currency context is the campaign's account currency.
- */
 export async function updateCampaignBudget(
   connection: Connection,
   externalCampaignId: string,
@@ -123,12 +128,6 @@ export async function updateCampaignBudget(
   await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, { params });
 }
 
-/**
- * Update the start / end schedule of a Facebook campaign.
- *
- * Both fields are optional. Values are ISO-8601 strings; Graph API stores
- * Unix timestamps but accepts ISO and converts internally.
- */
 export async function updateCampaignSchedule(
   connection: Connection,
   externalCampaignId: string,
@@ -141,17 +140,6 @@ export async function updateCampaignSchedule(
   await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, { params });
 }
 
-/**
- * Duplicate a Facebook campaign via the Graph `/copies` edge, then optionally
- * apply per-field overrides on the resulting campaign.
- *
- * The shell-only path (no ad-set / ad copying) is used here: it's the fastest
- * to clone and the most common "let me test a variant" workflow. Pass
- * `startPaused: true` (default) to keep the new campaign from spending while
- * the media buyer finishes setting it up.
- *
- * Returns the new campaign's Graph ID so the caller can sync it into the DB.
- */
 export async function duplicateCampaign(
   connection: Connection,
   sourceExternalCampaignId: string,
@@ -165,9 +153,6 @@ export async function duplicateCampaign(
   } = {},
 ): Promise<{ newCampaignId: string }> {
   const token = decrypt(connection.accessToken);
-
-  // Step 1: clone the campaign shell. `deep_copy=false` keeps it shell-only.
-  // `status_option=PAUSED` ensures the clone starts paused regardless of source.
   const copyParams: Record<string, string | boolean> = {
     access_token: token,
     deep_copy: false,
@@ -185,8 +170,6 @@ export async function duplicateCampaign(
     throw new Error("Facebook copy response missing copied_campaign_id");
   }
 
-  // Step 2: apply overrides on the new campaign. Run as a single POST so we
-  // don't burn extra Graph quota.
   const patchParams: Record<string, string | number> = { access_token: token };
   if (overrides.name) patchParams.name = overrides.name;
   if (typeof overrides.dailyBudget === "number") patchParams.daily_budget = Math.round(overrides.dailyBudget * 100);
@@ -194,7 +177,6 @@ export async function duplicateCampaign(
   if (overrides.startTime) patchParams.start_time = overrides.startTime;
   if (overrides.endTime) patchParams.stop_time = overrides.endTime;
 
-  // Only fire the second call if there's something to update.
   if (Object.keys(patchParams).length > 1) {
     await axios.post(`${GRAPH_BASE}/${newCampaignId}`, null, { params: patchParams });
   }

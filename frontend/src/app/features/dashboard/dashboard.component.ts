@@ -113,11 +113,9 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
           </app-dropdown>
         }
 
-        @if (canSync()) {
-          <button class="sync" (click)="syncNow()" [disabled]="syncing()">
-            {{ syncing() ? "Syncing…" : "Sync now" }}
-          </button>
-        }
+        <button class="sync" (click)="syncNow()" [disabled]="syncing()">
+          {{ syncing() ? "Syncing…" : "Sync now" }}
+        </button>
       </div>
     </header>
 
@@ -314,12 +312,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
   private readonly alertsApi = inject(AlertsService);
   private readonly status = inject(StatusBarService);
   /** Only media buyers can trigger writes (sync, connect, delete). Clients are read-only. */
-  readonly canSync = computed(() => this.auth.user()?.role === "media_buyer");
   readonly loadError = signal<string | null>(null);
 
   /** Bound from the route param /dashboard/:platform — "facebook" or "tiktok". */
   readonly platform = input<AdPlatform>("facebook");
-  readonly platformLabel = computed(() => this.platform() === "tiktok" ? "TikTok" : "Facebook");
+  readonly platformLabel = computed(() => "Facebook");
 
   readonly range = signal<Range>("7d");
   readonly customMode = signal(false);
@@ -535,7 +532,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   async syncNow(): Promise<void> {
     this.syncing.set(true);
     const platform = this.platform();
-    this.status.info(`Syncing ${platform === "tiktok" ? "TikTok" : "Facebook"}…`);
+    this.status.info("Syncing Facebook…");
     try {
       const res = await this.conns.syncNow(platform);
       const okResults = res.results.filter((r) => r.ok);

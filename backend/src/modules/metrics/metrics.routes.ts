@@ -33,7 +33,7 @@ function connId(req: Request): string | undefined {
   return req.query.connectionId ? String(req.query.connectionId) : undefined;
 }
 
-const ALLOWED_PLATFORMS = ["facebook", "tiktok"] as const;
+const ALLOWED_PLATFORMS = ["facebook"] as const;
 function platform(req: Request): string | undefined {
   const v = req.query.platform;
   if (typeof v !== "string") return undefined;
@@ -41,34 +41,34 @@ function platform(req: Request): string | undefined {
 }
 
 router.get("/overview", async (req, res: Response) => {
-  const workspaceId = (req as AuthedRequest).workspaceId;
-  res.json(await getOverview(workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req), platform(req)));
+  const userId = (req as AuthedRequest).userId;
+  res.json(await getOverview(userId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req), platform(req)));
 });
 
 router.get("/timeseries", async (req, res: Response) => {
-  const workspaceId = (req as AuthedRequest).workspaceId;
-  res.json({ points: await getTimeseries(workspaceId, range(req), connId(req), dateParam(req, "since"), dateParam(req, "until"), platform(req)) });
+  const userId = (req as AuthedRequest).userId;
+  res.json({ points: await getTimeseries(userId, range(req), connId(req), dateParam(req, "since"), dateParam(req, "until"), platform(req)) });
 });
 
 router.get("/campaigns", async (req, res: Response) => {
-  const workspaceId = (req as AuthedRequest).workspaceId;
-  res.json({ campaigns: await getCampaignAggregates(workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req), platform(req)) });
+  const userId = (req as AuthedRequest).userId;
+  res.json({ campaigns: await getCampaignAggregates(userId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req), platform(req)) });
 });
 
 router.get("/shopify/overview", async (req, res: Response) => {
-  const workspaceId = (req as AuthedRequest).workspaceId;
-  res.json(await getShopifyOverview(workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req)));
+  const userId = (req as AuthedRequest).userId;
+  res.json(await getShopifyOverview(userId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req)));
 });
 
 router.get("/shopify/timeseries", async (req, res: Response) => {
-  const workspaceId = (req as AuthedRequest).workspaceId;
-  res.json({ points: await getShopifyTimeseries(workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req)) });
+  const userId = (req as AuthedRequest).userId;
+  res.json({ points: await getShopifyTimeseries(userId, range(req), dateParam(req, "since"), dateParam(req, "until"), connId(req)) });
 });
 
 const ALLOWED_FINANCIAL_STATUSES = ["paid", "pending", "refunded", "partially_refunded", "voided", "authorized"] as const;
 
 router.get("/shopify/orders", async (req, res: Response) => {
-  const workspaceId = (req as AuthedRequest).workspaceId;
+  const userId = (req as AuthedRequest).userId;
   const limit = Math.min(Math.max(Number(req.query.limit ?? 50) || 50, 1), 200);
   const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
   const q = typeof req.query.q === "string" ? req.query.q.trim() : undefined;
@@ -77,7 +77,7 @@ router.get("/shopify/orders", async (req, res: Response) => {
     ? statusRaw
     : undefined;
 
-  res.json(await getShopifyOrdersList(workspaceId, {
+  res.json(await getShopifyOrdersList(userId, {
     connectionId: connId(req),
     financialStatus,
     q: q || undefined,
@@ -87,9 +87,9 @@ router.get("/shopify/orders", async (req, res: Response) => {
 });
 
 router.get("/shopify/orders/:id", async (req: Request, res: Response) => {
-  const workspaceId = (req as AuthedRequest).workspaceId;
+  const userId = (req as AuthedRequest).userId;
   const id = String(req.params.id);
-  const row = await getShopifyOrderDetail(workspaceId, id);
+  const row = await getShopifyOrderDetail(userId, id);
   if (!row) return res.status(404).json({ error: "Order not found" });
   res.json(row);
 });
@@ -101,18 +101,18 @@ function topLimit(req: Request): number {
 }
 
 router.get("/shopify/top-products", async (req, res: Response) => {
-  const workspaceId = (req as AuthedRequest).workspaceId;
+  const userId = (req as AuthedRequest).userId;
   res.json({
     products: await getShopifyTopProducts(
-      workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"),
+      userId, range(req), dateParam(req, "since"), dateParam(req, "until"),
       connId(req), topLimit(req),
     ),
   });
 });
 
 router.get("/shopify/orders-summary", async (req, res: Response) => {
-  const workspaceId = (req as AuthedRequest).workspaceId;
-  res.json(await getShopifyOrdersSummary(workspaceId, {
+  const userId = (req as AuthedRequest).userId;
+  res.json(await getShopifyOrdersSummary(userId, {
     connectionId: connId(req),
     sinceISO: dateParam(req, "since"),
     untilISO: dateParam(req, "until"),
@@ -120,10 +120,10 @@ router.get("/shopify/orders-summary", async (req, res: Response) => {
 });
 
 router.get("/shopify/top-customers", async (req, res: Response) => {
-  const workspaceId = (req as AuthedRequest).workspaceId;
+  const userId = (req as AuthedRequest).userId;
   res.json({
     customers: await getShopifyTopCustomers(
-      workspaceId, range(req), dateParam(req, "since"), dateParam(req, "until"),
+      userId, range(req), dateParam(req, "since"), dateParam(req, "until"),
       connId(req), topLimit(req),
     ),
   });

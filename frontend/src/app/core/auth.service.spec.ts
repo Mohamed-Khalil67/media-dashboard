@@ -61,12 +61,6 @@ describe("AuthService", () => {
     expect(gateway.__callbacks).toHaveLength(1);
   });
 
-  it("authReady flips to true after the first auth-state callback fires", () => {
-    expect(svc.authReady()).toBe(false);
-    gateway.__triggerAuthChange(null);
-    expect(svc.authReady()).toBe(true);
-  });
-
   it("clears cached user + localStorage on sign-out callback", () => {
     localStorage.setItem("auth.user", JSON.stringify({ id: "u_old", email: "old@x.com" }));
     gateway.__triggerAuthChange(null);
@@ -78,25 +72,65 @@ describe("AuthService", () => {
     const pending = svc.refreshMe();
     const req = http.expectOne(`${base}/auth/me`);
     expect(req.request.method).toBe("GET");
-    req.flush({
-      user: { id: "u1", email: "me@x.com", name: "Me", role: "admin", createdAt: "2026-01-01" },
-    });
+    req.flush({ user: { id: "u1", email: "me@x.com", name: "Me", createdAt: "2026-01-01" } });
     await pending;
     expect(svc.user()?.email).toBe("me@x.com");
-    expect(svc.user()?.role).toBe("admin");
     expect(localStorage.getItem("auth.user")).toContain("me@x.com");
   });
 
-  it("checkMigration GETs /auth/check-migration with the URL-encoded email", async () => {
-    const pending = svc.checkMigration("foo+bar@example.com");
-    const req = http.expectOne(`${base}/auth/check-migration?email=${encodeURIComponent("foo+bar@example.com")}`);
-    expect(req.request.method).toBe("GET");
-    req.flush({ exists: true, pendingMigration: true });
-    const out = await pending;
-    expect(out).toEqual({ exists: true, pendingMigration: true });
+  describe("logout — ephemeral wipe", () => {
+    it("calls POST /auth/logout BEFORE Firebase signOut (server wipes data first)", async () => {
+      localStorage.setItem("auth.user", "x");
+      svc.user.set({ id: "u", email: "u@x.com", name: null } as any);
+      const router = TestBed.inject(Router);
+      const navSpy = vi.spyOn(router, "navigate").mockResolvedValue(true);
+
+      const order: string[] = [];
+      gateway.signOutSpy.mockImplementation(async () => { order.push("firebase-signout"); });
+
+      const pending = svc.logout();
+      const req = http.expectOne(`${base}/auth/logout`);
+      expect(req.request.method).toBe("POST");
+      order.push("backend-logout");
+      req.flush({ ok: true });
+
+      await pending;
+
+      // Backend wipe must happen first; Firebase sign-out follows.
+      expect(order).toEqual(["backend-logout", "firebase-signout"]);
+      expect(gateway.signOutSpy).toHaveBeenCalledTimes(1);
+      expect(svc.user()).toBeNull();
+      expect(localStorage.getItem("auth.user")).toBeNull();
+      expect(navSpy).toHaveBeenCalledWith(["/"]);
+    });
+
+    it("still signs out of Firebase even if the backend wipe call fails", async () => {
+      const router = TestBed.inject(Router);
+      const navSpy = vi.spyOn(router, "navigate").mockResolvedValue(true);
+
+      const pending = svc.logout();
+      const req = http.expectOne(`${base}/auth/logout`);
+      req.error(new ProgressEvent("error"), { status: 500, statusText: "boom" });
+
+      await pending;
+
+      expect(gateway.signOutSpy).toHaveBeenCalledTimes(1);
+      expect(svc.user()).toBeNull();
+      expect(navSpy).toHaveBeenCalledWith(["/"]);
+    });
   });
 
-  it("requestPasswordResetWithVerification surfaces emailSent + devLink", async () => {
+  it("login delegates to the gateway with the right args", async () => {
+    await svc.login("u@x.com", "secret");
+    expect(gateway.signInSpy).toHaveBeenCalledWith("u@x.com", "secret");
+  });
+
+  it("token() returns whatever the gateway resolves (Bearer header shim)", async () => {
+    const t = await svc.token();
+    expect(t).toBe("stub-token");
+  });
+
+  it("requestPasswordResetWithVerification POSTs and surfaces the result", async () => {
     const pending = svc.requestPasswordResetWithVerification("user@x.com");
     const req = http.expectOne(`${base}/auth/password-reset`);
     expect(req.request.method).toBe("POST");
@@ -105,47 +139,5 @@ describe("AuthService", () => {
     const out = await pending;
     expect(out.emailSent).toBe(true);
     expect(out.devLink).toBe("https://auth/reset?code=abc");
-  });
-
-  it("requestPasswordResetWithVerification surfaces needsRegistration flag", async () => {
-    const pending = svc.requestPasswordResetWithVerification("never@signed.in");
-    const req = http.expectOne(`${base}/auth/password-reset`);
-    req.flush({ emailSent: true, needsRegistration: true });
-    const out = await pending;
-    expect(out.needsRegistration).toBe(true);
-  });
-
-  it("login delegates to the gateway with the right args", async () => {
-    await svc.login("u@x.com", "secret");
-    expect(gateway.signInSpy).toHaveBeenCalledWith("u@x.com", "secret");
-  });
-
-  it("logout clears state and navigates to /login", async () => {
-    localStorage.setItem("auth.user", "x");
-    svc.user.set({ id: "u", email: "u@x.com", name: null, role: "client" } as any);
-    const router = TestBed.inject(Router);
-    const navSpy = vi.spyOn(router, "navigate").mockResolvedValue(true);
-
-    await svc.logout();
-
-    expect(gateway.signOutSpy).toHaveBeenCalledTimes(1);
-    expect(svc.user()).toBeNull();
-    expect(localStorage.getItem("auth.user")).toBeNull();
-    expect(navSpy).toHaveBeenCalledWith(["/login"]);
-  });
-
-  it("signOutAndRedirectDenied navigates to /login with denied=1", async () => {
-    const router = TestBed.inject(Router);
-    const navSpy = vi.spyOn(router, "navigate").mockResolvedValue(true);
-
-    await svc.signOutAndRedirectDenied();
-
-    expect(gateway.signOutSpy).toHaveBeenCalledTimes(1);
-    expect(navSpy).toHaveBeenCalledWith(["/login"], { queryParams: { denied: 1 } });
-  });
-
-  it("token() returns whatever the gateway resolves (Bearer header shim)", async () => {
-    const t = await svc.token();
-    expect(t).toBe("stub-token");
   });
 });

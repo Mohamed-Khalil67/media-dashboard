@@ -1,16 +1,15 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../../db/client";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
-import { requireRole } from "../../middleware/requireRole";
 
 const router = Router();
 
 router.use(requireAuth);
 
 router.get("/", async (req: Request, res: Response) => {
-  const { workspaceId } = req as AuthedRequest;
+  const { userId } = req as AuthedRequest;
   const connections = await prisma.connection.findMany({
-    where: { workspaceId },
+    where: { userId },
     select: {
       id: true,
       platform: true,
@@ -22,6 +21,8 @@ router.get("/", async (req: Request, res: Response) => {
       lastSyncAt: true,
       lastSyncOk: true,
       lastSyncError: true,
+      syncSince: true,
+      syncUntil: true,
     },
     orderBy: { createdAt: "desc" },
   });
@@ -29,10 +30,10 @@ router.get("/", async (req: Request, res: Response) => {
 });
 
 router.get("/:id/syncs", async (req: Request, res: Response) => {
-  const { workspaceId } = req as AuthedRequest;
+  const { userId } = req as AuthedRequest;
   const id = String(req.params.id);
 
-  const connection = await prisma.connection.findFirst({ where: { id, workspaceId } });
+  const connection = await prisma.connection.findFirst({ where: { id, userId } });
   if (!connection) return res.status(404).json({ error: "Connection not found" });
 
   const limit = Math.min(Number(req.query.limit ?? 50) || 50, 200);
@@ -53,13 +54,11 @@ router.get("/:id/syncs", async (req: Request, res: Response) => {
   res.json({ runs });
 });
 
-// Only the media buyer who owns the connection should be tearing it down.
-// Clients (read-only) and admins (user-management only) are blocked.
-router.delete("/:id", requireRole("media_buyer"), async (req: Request, res: Response) => {
-  const { workspaceId } = req as AuthedRequest;
+router.delete("/:id", async (req: Request, res: Response) => {
+  const { userId } = req as AuthedRequest;
   const id = String(req.params.id);
 
-  const connection = await prisma.connection.findFirst({ where: { id, workspaceId } });
+  const connection = await prisma.connection.findFirst({ where: { id, userId } });
   if (!connection) return res.status(404).json({ error: "Connection not found" });
 
   await prisma.connection.delete({ where: { id } });

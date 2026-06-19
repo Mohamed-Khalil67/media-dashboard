@@ -60,7 +60,7 @@ const VIEWS_KEY = "campaign-views.v1";
           <span class="muted">Views:</span>
           @for (v of savedViews(); track v.name) {
             <button class="view-chip" (click)="applyView(v)">{{ v.name }}</button>
-            <button class="view-x" (click)="deleteView(v.name)" title="Delete">×</button>
+            <button class="view-x" (click)="deleteView(v.name)" [attr.aria-label]="'Delete saved view ' + v.name" title="Delete">×</button>
           }
         </div>
       }
@@ -77,22 +77,22 @@ const VIEWS_KEY = "campaign-views.v1";
         <table>
           <thead>
             <tr>
-              <th class="col-flag"></th>
-              <th class="col-name" (click)="toggleSort('name')">Campaign</th>
-              <th class="col-account" (click)="toggleSort('accountName')">Account</th>
-              <th class="col-tight" (click)="toggleSort('platform')">Platform</th>
-              <th class="col-tight col-created" (click)="toggleSort('createdAtPlatform')">Created</th>
-              <th (click)="toggleSort('spend')" class="num">Spend</th>
-              <th (click)="toggleSort('revenue')" class="num">Revenue</th>
-              <th (click)="toggleSort('purchases')" class="num">Purchases</th>
+              <th scope="col" class="col-flag"></th>
+              <th scope="col" class="col-name" (click)="toggleSort('name')">Campaign</th>
+              <th scope="col" class="col-account" (click)="toggleSort('accountName')">Account</th>
+              <th scope="col" class="col-tight" (click)="toggleSort('platform')">Platform</th>
+              <th scope="col" class="col-tight col-created" (click)="toggleSort('createdAtPlatform')">Created</th>
+              <th scope="col" (click)="toggleSort('spend')" class="num">Spend</th>
+              <th scope="col" (click)="toggleSort('revenue')" class="num">Revenue</th>
+              <th scope="col" (click)="toggleSort('purchases')" class="num">Purchases</th>
               @if (metricMode() === 'roas') {
-                <th (click)="toggleSort('roas')" class="num">ROAS</th>
+                <th scope="col" (click)="toggleSort('roas')" class="num">ROAS</th>
               } @else {
-                <th (click)="toggleSort('cpa')" class="num">CPA</th>
+                <th scope="col" (click)="toggleSort('cpa')" class="num">CPA</th>
               }
-              <th (click)="toggleSort('frequency')" class="num">Freq.</th>
-              <th class="col-trend">Trend</th>
-              <th class="col-actions">Actions</th>
+              <th scope="col" (click)="toggleSort('frequency')" class="num">Freq.</th>
+              <th scope="col" class="col-trend">Trend</th>
+              <th scope="col" class="col-actions">Actions</th>
             </tr>
           </thead>
           <tbody>

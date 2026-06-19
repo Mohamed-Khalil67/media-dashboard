@@ -4,8 +4,9 @@ const STATE_EXPIRY = "5m";
 
 export interface OAuthState {
   userId: string;
-  workspaceId: string;
-  provider: "facebook" | "tiktok" | "shopify";
+  /** The pending Connection row that holds the user-supplied app credentials. */
+  connectionId: string;
+  provider: "facebook" | "shopify";
 }
 
 export function signState(payload: OAuthState): string {

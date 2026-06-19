@@ -16,12 +16,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         : req;
       return next(authed).pipe(
         catchError((err) => {
-          const backendError = err?.error?.error;
-          if (err.status === 403 && backendError === "access_denied") {
-            const msg = err?.error?.message ?? "This email isn't authorized to access this workspace.";
-            status.error(msg);
-            auth.signOutAndRedirectDenied();
-          } else if (err.status === 401 && auth.isLoggedIn()) {
+          if (err.status === 401 && auth.isLoggedIn()) {
             status.error("Session expired. Please sign in again.");
             auth.logout();
           } else if (err.status >= 500) {

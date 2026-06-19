@@ -104,14 +104,14 @@ const STATUSES = [
         <table class="orders" aria-label="Orders">
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Order #</th>
-              <th>Customer</th>
-              <th class="num">Items</th>
-              <th class="num">Total</th>
-              <th>Financial</th>
-              <th>Fulfillment</th>
-              <th><span class="sr-only">Open</span></th>
+              <th scope="col">Date</th>
+              <th scope="col">Order #</th>
+              <th scope="col">Customer</th>
+              <th scope="col" class="num">Items</th>
+              <th scope="col" class="num">Total</th>
+              <th scope="col">Financial</th>
+              <th scope="col">Fulfillment</th>
+              <th scope="col"><span class="sr-only">Open</span></th>
             </tr>
           </thead>
           <tbody>
@@ -121,7 +121,7 @@ const STATUSES = [
                 <td class="order-num">{{ o.orderNumber ?? o.externalId }}</td>
                 <td class="customer">{{ o.customerEmail ?? '—' }}</td>
                 <td class="num">{{ o.lineItemsCount | number: "1.0-0" }}</td>
-                <td class="num"><strong>{{ o.totalPrice | currency: (o.currency || 'USD'):'symbol':'1.0-2' }}</strong></td>
+                <td class="num"><strong>{{ o.totalPrice | currency: (o.currency || 'EGP'):'symbol':'1.0-2' }}</strong></td>
                 <td><span class="pill pill--{{ financialClass(o.financialStatus) }}">{{ o.financialStatus ?? '—' }}</span></td>
                 <td><span class="muted">{{ o.fulfillmentStatus ?? '—' }}</span></td>
                 <td class="open" aria-hidden="true">›</td>
@@ -149,7 +149,7 @@ const STATUSES = [
           </header>
           <div class="drawer-meta">
             <div><span class="muted">Date</span><strong>{{ target.createdAt | date: "medium" }}</strong></div>
-            <div><span class="muted">Total</span><strong>{{ target.totalPrice | currency: (target.currency || 'USD'):'symbol':'1.0-2' }}</strong></div>
+            <div><span class="muted">Total</span><strong>{{ target.totalPrice | currency: (target.currency || 'EGP'):'symbol':'1.0-2' }}</strong></div>
             <div><span class="muted">Customer</span><strong>{{ target.customerEmail ?? '—' }}</strong></div>
             <div><span class="muted">Items</span><strong>{{ target.lineItemsCount }}</strong></div>
           </div>
@@ -164,7 +164,7 @@ const STATUSES = [
                   <li>
                     <span class="li-title">{{ item.title ?? item.sku ?? 'Item' }}</span>
                     <span class="li-meta">× {{ item.quantity ?? 1 }}</span>
-                    <span class="li-price">{{ +(item.price ?? '0') | currency: (target.currency || 'USD'):'symbol':'1.0-2' }}</span>
+                    <span class="li-price">{{ +(item.price ?? '0') | currency: (target.currency || 'EGP'):'symbol':'1.0-2' }}</span>
                   </li>
                 }
               </ul>

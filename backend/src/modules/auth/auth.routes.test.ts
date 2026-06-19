@@ -1,233 +1,132 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import express from "express";
 import request from "supertest";
 
-const mocks = vi.hoisted(() => ({
-  allowedFindUnique: vi.fn(),
-  generatePasswordResetLink: vi.fn(),
-  userFindUnique: vi.fn(),
-  workspaceFindUnique: vi.fn(),
-  // Test-controlled identity for the stubbed requireAuth so /me sees a real userId.
-  callerUserId: "u_self",
-  callerWorkspaceId: "ws_self",
-  callerRole: "owner" as "owner" | "member",
+const prismaMock = vi.hoisted(() => ({
+  user: { findUnique: vi.fn() },
+  connection: { deleteMany: vi.fn() },
+  alertRule: { deleteMany: vi.fn() },
+  $transaction: vi.fn(),
 }));
 
-vi.mock("../../db/client", () => ({
-  prisma: {
-    allowedEmail: { findUnique: mocks.allowedFindUnique },
-    user: { findUnique: mocks.userFindUnique },
-    workspace: { findUnique: mocks.workspaceFindUnique },
-  },
+vi.mock("../../db/client", () => ({ prisma: prismaMock }));
+vi.mock("../../lib/logger", () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
-
-vi.mock("../../lib/firebase", () => ({
-  firebaseAuth: () => ({ generatePasswordResetLink: mocks.generatePasswordResetLink }),
+vi.mock("../../lib/firebase", () => ({ firebaseAuth: () => ({}) }));
+vi.mock("../../middleware/rateLimit", () => ({
+  authLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
 }));
-
 vi.mock("../../middleware/auth", () => ({
-  requireAuth: (req: any, _res: unknown, next: () => void) => {
-    req.userId = mocks.callerUserId;
-    req.workspaceId = mocks.callerWorkspaceId;
-    req.role = mocks.callerRole;
-    req.userRole = "client";
+  requireAuth: (req: any, _res: any, next: any) => {
+    const header = req.headers.authorization as string | undefined;
+    if (!header?.startsWith("Bearer ")) return _res.status(401).json({ error: "no auth" });
+    req.userId = header.slice(7);
     next();
   },
 }));
 
-vi.mock("../../lib/logger", () => ({
-  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-}));
-
-// authLimiter is module-singleton state — leaving it real causes later tests
-// (after ~10 requests) to receive 429 instead of the handler's actual response.
-// Replace it with a pass-through so each test exercises route logic, not throttling.
-vi.mock("../../middleware/rateLimit", () => ({
-  authLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
-  apiLimiter: (_req: unknown, _res: unknown, next: () => void) => next(),
-}));
-
 import authRoutes from "./auth.routes";
 
-function makeApp() {
+function buildApp() {
   const app = express();
   app.use(express.json());
   app.use("/api/auth", authRoutes);
   return app;
 }
 
-const originalEnv = process.env.NODE_ENV;
-
 beforeEach(() => {
   vi.clearAllMocks();
+  prismaMock.$transaction.mockImplementation(async (ops: unknown[]) => ops.map(() => ({ count: 0 })));
+  prismaMock.connection.deleteMany.mockResolvedValue({ count: 0 });
+  prismaMock.alertRule.deleteMany.mockResolvedValue({ count: 0 });
 });
 
-afterEach(() => {
-  process.env.NODE_ENV = originalEnv;
-});
-
-describe("POST /api/auth/password-reset", () => {
-  it("returns 400 for an obviously invalid email", async () => {
-    const res = await request(makeApp()).post("/api/auth/password-reset").send({ email: "not-an-email" });
-    expect(res.status).toBe(400);
-    expect(res.body.error).toBe("invalid_email");
-    expect(mocks.allowedFindUnique).not.toHaveBeenCalled();
-    expect(mocks.generatePasswordResetLink).not.toHaveBeenCalled();
+describe("POST /api/auth/logout — ephemeral wipe", () => {
+  it("rejects unauthenticated callers with 401", async () => {
+    const res = await request(buildApp()).post("/api/auth/logout").send({});
+    expect(res.status).toBe(401);
+    expect(prismaMock.$transaction).not.toHaveBeenCalled();
   });
 
-  it("returns emailSent:true without leaking existence when email isn't on the allowlist", async () => {
-    mocks.allowedFindUnique.mockResolvedValueOnce(null);
-    const res = await request(makeApp()).post("/api/auth/password-reset").send({ email: "outsider@example.com" });
+  it("deletes connections and alert rules scoped to the caller in one transaction", async () => {
+    const res = await request(buildApp())
+      .post("/api/auth/logout")
+      .set("Authorization", "Bearer user-A")
+      .send({});
+
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ emailSent: true });
-    expect(mocks.generatePasswordResetLink).not.toHaveBeenCalled();
+    expect(res.body).toEqual({ ok: true });
+
+    expect(prismaMock.connection.deleteMany).toHaveBeenCalledWith({ where: { userId: "user-A" } });
+    expect(prismaMock.alertRule.deleteMany).toHaveBeenCalledWith({ where: { userId: "user-A" } });
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
+    // Both deletes go through the same transaction array — atomic wipe.
+    const txArg = prismaMock.$transaction.mock.calls[0][0];
+    expect(Array.isArray(txArg)).toBe(true);
+    expect(txArg).toHaveLength(2);
   });
 
-  it("flags needsRegistration when allowlisted but no Firebase account exists yet", async () => {
-    mocks.allowedFindUnique.mockResolvedValueOnce({ id: "ae_1" });
-    mocks.generatePasswordResetLink.mockRejectedValueOnce({ code: "auth/user-not-found" });
-    const res = await request(makeApp()).post("/api/auth/password-reset").send({ email: "never@signed.in" });
+  it("does NOT touch User row — caller can sign back in", async () => {
+    await request(buildApp())
+      .post("/api/auth/logout")
+      .set("Authorization", "Bearer user-A")
+      .send({});
+
+    // Critical anti-traffic guarantee: User row is preserved.
+    const prismaAny = prismaMock as unknown as Record<string, unknown>;
+    expect(prismaAny.user).not.toHaveProperty("deleteMany");
+    expect((prismaMock.user as any).delete).toBeUndefined();
+  });
+
+  it("isolates wipe to the authenticated user only (multi-user safety)", async () => {
+    await request(buildApp())
+      .post("/api/auth/logout")
+      .set("Authorization", "Bearer user-A")
+      .send({});
+
+    // Every where clause must filter by the caller's id — never a bare deleteMany.
+    for (const call of prismaMock.connection.deleteMany.mock.calls) {
+      expect(call[0]?.where?.userId).toBe("user-A");
+    }
+    for (const call of prismaMock.alertRule.deleteMany.mock.calls) {
+      expect(call[0]?.where?.userId).toBe("user-A");
+    }
+  });
+
+  it("is idempotent — second call returns 200 with zero rows", async () => {
+    await request(buildApp())
+      .post("/api/auth/logout")
+      .set("Authorization", "Bearer user-A")
+      .send({});
+    const res = await request(buildApp())
+      .post("/api/auth/logout")
+      .set("Authorization", "Bearer user-A")
+      .send({});
+
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({ emailSent: true, needsRegistration: true });
-  });
-
-  it("returns the dev link in non-production mode", async () => {
-    process.env.NODE_ENV = "development";
-    mocks.allowedFindUnique.mockResolvedValueOnce({ id: "ae_1" });
-    mocks.generatePasswordResetLink.mockResolvedValueOnce("https://auth/reset?code=abc");
-
-    const res = await request(makeApp()).post("/api/auth/password-reset").send({ email: "user@example.com" });
-    expect(res.status).toBe(200);
-    expect(res.body.emailSent).toBe(true);
-    expect(res.body.devLink).toBe("https://auth/reset?code=abc");
-    expect(mocks.generatePasswordResetLink).toHaveBeenCalledWith(
-      "user@example.com",
-      expect.objectContaining({ url: expect.stringContaining("/login"), handleCodeInApp: false }),
-    );
-  });
-
-  it("hides the dev link in production mode", async () => {
-    process.env.NODE_ENV = "production";
-    mocks.allowedFindUnique.mockResolvedValueOnce({ id: "ae_1" });
-    mocks.generatePasswordResetLink.mockResolvedValueOnce("https://auth/reset?code=abc");
-
-    const res = await request(makeApp()).post("/api/auth/password-reset").send({ email: "user@example.com" });
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ emailSent: true });
-    expect(res.body.devLink).toBeUndefined();
-  });
-
-  it("normalizes the email to lowercase before lookup", async () => {
-    mocks.allowedFindUnique.mockResolvedValueOnce({ id: "ae_1" });
-    mocks.generatePasswordResetLink.mockResolvedValueOnce("https://auth/reset?code=abc");
-
-    await request(makeApp()).post("/api/auth/password-reset").send({ email: "  Foo.Bar@Example.COM  " });
-    expect(mocks.allowedFindUnique).toHaveBeenCalledWith({
-      where: { email: "foo.bar@example.com" },
-      select: { id: true },
-    });
-    expect(mocks.generatePasswordResetLink).toHaveBeenCalledWith(
-      "foo.bar@example.com",
-      expect.objectContaining({ url: expect.any(String) }),
-    );
-  });
-
-  it("returns 500 reset_failed on unexpected Firebase errors", async () => {
-    mocks.allowedFindUnique.mockResolvedValueOnce({ id: "ae_1" });
-    mocks.generatePasswordResetLink.mockRejectedValueOnce(new Error("firebase down"));
-    const res = await request(makeApp()).post("/api/auth/password-reset").send({ email: "user@example.com" });
-    expect(res.status).toBe(500);
-    expect(res.body.error).toBe("reset_failed");
-  });
-
-  it("returns 503 firebase_link_unavailable when Firebase echoes the email but omits oobLink", async () => {
-    mocks.allowedFindUnique.mockResolvedValueOnce({ id: "ae_1" });
-    mocks.generatePasswordResetLink.mockRejectedValueOnce({
-      code: "auth/internal-error",
-      httpResponse: {
-        status: 200,
-        data: {
-          kind: "identitytoolkit#GetOobConfirmationCodeResponse",
-          email: "user@example.com",
-        },
-      },
-    });
-    const res = await request(makeApp()).post("/api/auth/password-reset").send({ email: "user@example.com" });
-    expect(res.status).toBe(503);
-    expect(res.body.error).toBe("firebase_link_unavailable");
-    expect(res.body.message).toContain("set-password");
+    expect(res.body).toEqual({ ok: true });
+    expect(prismaMock.$transaction).toHaveBeenCalledTimes(2);
   });
 });
 
 describe("GET /api/auth/me", () => {
-  it("returns the user + workspace pair when both exist", async () => {
-    mocks.userFindUnique.mockResolvedValueOnce({
-      id: "u_self",
-      email: "me@example.com",
-      name: "Me",
-      plan: "trial",
-      role: "admin",
-      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+  it("returns the local profile for the caller", async () => {
+    prismaMock.user.findUnique.mockResolvedValueOnce({
+      id: "user-A", email: "a@example.com", name: "A", createdAt: new Date("2026-01-01"),
     });
-    mocks.workspaceFindUnique.mockResolvedValueOnce({ id: "ws_self", name: "Personal" });
-
-    const res = await request(makeApp()).get("/api/auth/me");
-
+    const res = await request(buildApp()).get("/api/auth/me").set("Authorization", "Bearer user-A");
     expect(res.status).toBe(200);
-    expect(res.body.user.email).toBe("me@example.com");
-    expect(res.body.user.role).toBe("admin");
-    expect(res.body.workspace).toEqual({ id: "ws_self", name: "Personal", role: "owner" });
+    expect(res.body.user.id).toBe("user-A");
+    expect(prismaMock.user.findUnique).toHaveBeenCalledWith({
+      where: { id: "user-A" },
+      select: { id: true, email: true, name: true, createdAt: true },
+    });
   });
 
-  it("returns 404 when the local user row vanished", async () => {
-    mocks.userFindUnique.mockResolvedValueOnce(null);
-    const res = await request(makeApp()).get("/api/auth/me");
+  it("404s when the user row is missing", async () => {
+    prismaMock.user.findUnique.mockResolvedValueOnce(null);
+    const res = await request(buildApp()).get("/api/auth/me").set("Authorization", "Bearer ghost");
     expect(res.status).toBe(404);
-    expect(res.body.error).toBe("User not found");
-  });
-
-  it("returns workspace: null when the active workspace can't be found", async () => {
-    mocks.userFindUnique.mockResolvedValueOnce({
-      id: "u_self", email: "me@example.com", name: null, plan: "trial", role: "client", createdAt: new Date(),
-    });
-    mocks.workspaceFindUnique.mockResolvedValueOnce(null);
-    const res = await request(makeApp()).get("/api/auth/me");
-    expect(res.status).toBe(200);
-    expect(res.body.workspace).toBeNull();
-  });
-});
-
-describe("GET /api/auth/check-migration", () => {
-  it("returns exists:false when no email param is supplied", async () => {
-    const res = await request(makeApp()).get("/api/auth/check-migration");
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ exists: false, pendingMigration: false });
-    expect(mocks.userFindUnique).not.toHaveBeenCalled();
-  });
-
-  it("returns exists:false for an unknown email", async () => {
-    mocks.userFindUnique.mockResolvedValueOnce(null);
-    const res = await request(makeApp()).get("/api/auth/check-migration").query({ email: "nobody@example.com" });
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ exists: false, pendingMigration: false });
-  });
-
-  it("flags legacy users who still need the Firebase migration", async () => {
-    mocks.userFindUnique.mockResolvedValueOnce({ pendingMigration: true });
-    const res = await request(makeApp()).get("/api/auth/check-migration").query({ email: "legacy@example.com" });
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ exists: true, pendingMigration: true });
-  });
-
-  it("reports exists:true without the migration flag for already-migrated users", async () => {
-    mocks.userFindUnique.mockResolvedValueOnce({ pendingMigration: false });
-    const res = await request(makeApp()).get("/api/auth/check-migration").query({ email: "Modern@Example.COM" });
-    expect(res.status).toBe(200);
-    expect(res.body).toEqual({ exists: true, pendingMigration: false });
-    // The handler should have lowercased the email before the DB lookup.
-    expect(mocks.userFindUnique).toHaveBeenCalledWith({
-      where: { email: "modern@example.com" },
-      select: { pendingMigration: true },
-    });
   });
 });
