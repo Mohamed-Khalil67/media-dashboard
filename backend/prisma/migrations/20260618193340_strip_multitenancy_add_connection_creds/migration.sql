@@ -9,13 +9,10 @@
 -- Sweep tiktok data first; cascade handles Campaign/Insight/SyncRun.
 DELETE FROM "Connection" WHERE platform = 'tiktok';
 
--- Tables that go away entirely.
-DROP TABLE IF EXISTS "WorkspaceMember";
-DROP TABLE IF EXISTS "Identity";
-DROP TABLE IF EXISTS "Workspace";
-DROP TABLE IF EXISTS "SystemConfig";
-DROP TABLE IF EXISTS "AllowedEmail";
-DROP TABLE IF EXISTS "DeletionLog";
+-- Drop FK columns BEFORE dropping the tables they reference.
+-- (PostgreSQL won't drop a table while FK constraints still point to it.)
+ALTER TABLE "Connection" DROP COLUMN IF EXISTS "workspaceId";
+ALTER TABLE "AlertRule"  DROP COLUMN IF EXISTS "workspaceId";
 
 -- User columns we no longer use.
 ALTER TABLE "User"
@@ -25,11 +22,13 @@ ALTER TABLE "User"
   DROP COLUMN IF EXISTS "pendingMigration",
   DROP COLUMN IF EXISTS "passwordHash";
 
--- Connection columns we no longer use.
-ALTER TABLE "Connection" DROP COLUMN IF EXISTS "workspaceId";
-
--- AlertRule columns we no longer use.
-ALTER TABLE "AlertRule" DROP COLUMN IF EXISTS "workspaceId";
+-- Tables that go away entirely (FK refs already dropped above).
+DROP TABLE IF EXISTS "WorkspaceMember";
+DROP TABLE IF EXISTS "Identity";
+DROP TABLE IF EXISTS "Workspace";
+DROP TABLE IF EXISTS "SystemConfig";
+DROP TABLE IF EXISTS "AllowedEmail";
+DROP TABLE IF EXISTS "DeletionLog";
 
 -- New per-connection developer credentials + historical sync window.
 ALTER TABLE "Connection"
