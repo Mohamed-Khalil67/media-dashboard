@@ -26,6 +26,7 @@ export interface ConnectStartRequest {
   since?: string;
   until?: string;
   shop?: string;
+  connectionId?: string;
 }
 
 export interface ConnectStartResponse {

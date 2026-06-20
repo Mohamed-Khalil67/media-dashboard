@@ -28,12 +28,18 @@ import { ThemeService } from "../core/theme.service";
     @if (showLogoutConfirm()) {
       <div class="modal-backdrop" (click)="showLogoutConfirm.set(false)">
         <div class="modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" (click)="$event.stopPropagation()">
+          <div class="modal-icon" aria-hidden="true">⚠</div>
           <h2 id="logout-title">Log out & erase synced data?</h2>
           <p>
-            Logging out will <strong>permanently delete every connection and the data we've pulled for you</strong>
-            from Facebook and Shopify. Your account stays intact so you can log back in — but the next dashboard
-            will start empty until you reconnect.
+            We'll <strong>permanently delete every connection</strong> and all the data we've pulled for you
+            from Facebook and Shopify. Your account stays intact — but the next dashboard starts empty until
+            you reconnect.
           </p>
+          <ul class="wipe-list">
+            <li>Connections & access tokens</li>
+            <li>Campaigns, insights & spend history</li>
+            <li>Shopify orders & alert rules</li>
+          </ul>
           <div class="modal-actions">
             <button type="button" class="btn-ghost" (click)="showLogoutConfirm.set(false)" [disabled]="loggingOut()">Cancel</button>
             <button type="button" class="btn-danger" (click)="doLogout()" [disabled]="loggingOut()">
@@ -67,10 +73,14 @@ import { ThemeService } from "../core/theme.service";
     .theme { font-size: 1rem; padding: .35rem .65rem !important; }
     .shell-main { flex: 1; padding: 1.5rem; max-width: 1280px; margin: 0 auto; width: 100%; }
 
-    .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .55); display: flex; align-items: center; justify-content: center; z-index: 100; }
-    .modal { background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: .75rem; padding: 1.5rem; max-width: 28rem; }
-    .modal h2 { margin: 0 0 .75rem; color: var(--text); font-size: 1.15rem; }
-    .modal p { color: var(--text-muted); line-height: 1.5; margin: 0 0 1.25rem; }
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .65); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+    .modal { background: var(--card-bg); border: 1px solid var(--card-bd); border-top: 3px solid var(--danger); border-radius: .75rem; padding: 1.75rem; max-width: 30rem; width: 100%; box-shadow: 0 24px 64px rgba(0, 0, 0, .35); }
+    .modal-icon { width: 2.5rem; height: 2.5rem; border-radius: 50%; background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; margin-bottom: .85rem; }
+    .modal h2 { margin: 0 0 .65rem; color: var(--text); font-size: 1.2rem; font-weight: 600; }
+    .modal p { color: var(--text-muted); line-height: 1.55; margin: 0 0 1rem; font-size: .9rem; }
+    .wipe-list { list-style: none; padding: 0; margin: 0 0 1.25rem; font-size: .82rem; color: var(--text-muted); }
+    .wipe-list li { padding: .3rem 0 .3rem 1.25rem; position: relative; }
+    .wipe-list li::before { content: "×"; position: absolute; left: 0; color: var(--danger); font-weight: 700; }
     .modal-actions { display: flex; justify-content: flex-end; gap: .5rem; }
     .btn-ghost, .btn-danger { padding: .5rem 1rem; border-radius: .375rem; font-weight: 500; cursor: pointer; border: 1px solid; font-size: .875rem; }
     .btn-ghost { background: transparent; color: var(--text); border-color: var(--card-bd); }

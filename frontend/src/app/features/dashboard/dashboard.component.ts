@@ -151,9 +151,14 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
       </div>
     } @else if (!kpis()) {
       <section class="empty">
-        <h2>No data yet</h2>
-        <p>Connect a platform and run a sync to populate your KPIs.</p>
-        <a routerLink="/connections" class="primary-link">Go to Connections →</a>
+        <div class="empty-art" aria-hidden="true">📡</div>
+        <h2>Let's pull in your first numbers</h2>
+        <p>Connect a Facebook ad account with your own app credentials and we'll start syncing spend, ROAS and orders every couple of minutes — automatically.</p>
+        <div class="empty-actions">
+          <a routerLink="/connections" class="cta-primary">Connect Facebook Ads →</a>
+          <a routerLink="/connections" class="cta-ghost">or connect Shopify</a>
+        </div>
+        <p class="empty-hint">You'll need your own Facebook App ID + App Secret. We'll walk you through it.</p>
       </section>
     } @else {
       <section class="kpi-grid">
@@ -297,10 +302,26 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
       .col--stack > app-alerts-panel { flex: 0 0 auto; max-height: 26rem; }
     }
     .full { margin-bottom: 1rem; }
-    .empty { background: var(--card-bg); border: 1px dashed var(--input-bd); border-radius: .75rem; padding: 3rem 2rem; text-align: center; color: var(--text-muted); }
-    .empty h2 { margin-top: 0; color: var(--text); }
-    .primary-link { color: var(--accent); font-weight: 500; text-decoration: none; }
-    .primary-link:hover { text-decoration: underline; }
+    .empty {
+      background: linear-gradient(160deg, var(--card-bg) 0%, color-mix(in srgb, var(--accent) 6%, var(--card-bg)) 100%);
+      border: 1px solid var(--card-bd); border-radius: 1rem;
+      padding: 3.5rem 2rem; text-align: center; color: var(--text-muted);
+      max-width: 36rem; margin: 1rem auto;
+    }
+    .empty-art { font-size: 2.75rem; margin-bottom: .75rem; opacity: .9; }
+    .empty h2 { margin: 0 0 .75rem; color: var(--text); font-size: 1.35rem; font-weight: 600; }
+    .empty p { margin: 0 auto 1.5rem; max-width: 28rem; line-height: 1.55; }
+    .empty-actions { display: flex; gap: .65rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1rem; }
+    .cta-primary {
+      background: var(--accent); color: #fff; padding: .65rem 1.25rem;
+      border-radius: .55rem; font-weight: 500; text-decoration: none; font-size: .92rem;
+      box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 32%, transparent);
+      transition: opacity .15s, transform .1s;
+    }
+    .cta-primary:hover { opacity: .92; transform: translateY(-1px); }
+    .cta-ghost { color: var(--text-muted); padding: .65rem 1rem; text-decoration: none; font-size: .9rem; }
+    .cta-ghost:hover { color: var(--text); text-decoration: underline; }
+    .empty-hint { font-size: .78rem; color: var(--text-muted); margin: 0; opacity: .8; }
     .skeleton-card { height: 7.5rem; background: var(--card-bg); border-radius: .75rem; border: 1px solid var(--card-bd); background-image: linear-gradient(90deg, var(--card-bg) 0%, var(--ghost-bg) 50%, var(--card-bg) 100%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
     @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
   `],

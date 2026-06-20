@@ -93,6 +93,7 @@ function isoDaysAgo(days: number): string {
                 <button class="ghost" (click)="toggleHistory(c.id)">
                   {{ expandedId() === c.id ? 'Hide history' : 'Sync history' }}
                 </button>
+                <button class="edit" (click)="openEditModal(c)" title="Update App ID / Secret or date range">Edit credentials</button>
                 <button class="danger" (click)="disconnect(c)">Disconnect</button>
               </div>
             </div>
@@ -106,13 +107,14 @@ function isoDaysAgo(days: number): string {
       <div class="modal-backdrop" (click)="closeModal()">
         <div class="modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
           <header class="modal-head">
-            <h2>Connect {{ platformLabel(mp) }}</h2>
+            <h2>{{ editingConnection() ? 'Edit ' + platformLabel(mp) + ' credentials' : 'Connect ' + platformLabel(mp) }}</h2>
             <button class="x" (click)="closeModal()" aria-label="Close">×</button>
           </header>
 
           <p class="modal-lede">
-            Enter the credentials for your own {{ platformLabel(mp) }} app. We'll use them to fetch data
-            on your behalf and re-sync every couple of minutes.
+            {{ editingConnection()
+              ? 'Update your App ID, secret, or date range. We\'ll re-run the OAuth flow to apply the new credentials.'
+              : 'Enter the credentials for your own ' + platformLabel(mp) + ' app. We\'ll use them to fetch data on your behalf and re-sync every couple of minutes.' }}
           </p>
 
           <form [formGroup]="form" (ngSubmit)="submitModal()">
@@ -172,7 +174,7 @@ function isoDaysAgo(days: number): string {
             <div class="modal-actions">
               <button type="button" class="ghost" (click)="closeModal()" [disabled]="submitting()">Cancel</button>
               <button type="submit" class="primary" [disabled]="form.invalid || submitting()">
-                {{ submitting() ? "Starting…" : "Continue to " + platformLabel(mp) }}
+                {{ submitting() ? "Starting…" : editingConnection() ? "Update & re-authorize" : "Continue to " + platformLabel(mp) }}
               </button>
             </div>
           </form>
@@ -218,6 +220,9 @@ function isoDaysAgo(days: number): string {
     button.ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--card-bd);
       padding: .5rem .9rem; border-radius: .5rem; cursor: pointer; font-size: .85rem; }
     button.ghost:hover:not(:disabled) { background: var(--ghost-bg); color: var(--text); }
+    button.edit { background: transparent; color: #4f46e5; border: 1px solid #c7d2fe;
+      padding: .35rem .75rem; border-radius: .375rem; cursor: pointer; font-size: .8rem; }
+    button.edit:hover { background: #eef2ff; }
     button.danger { background: transparent; color: #dc2626; border: 1px solid #fecaca;
       padding: .35rem .75rem; border-radius: .375rem; cursor: pointer; font-size: .8rem; }
     button.danger:hover { background: #fef2f2; }
@@ -303,6 +308,7 @@ export class ConnectionsComponent implements OnInit {
   readonly loadError = signal<string | null>(null);
   readonly expandedId = signal<string | null>(null);
   readonly modalPlatform = signal<Platform | null>(null);
+  readonly editingConnection = signal<Connection | null>(null);
   readonly submitting = signal(false);
   readonly modalError = signal<string | null>(null);
 
@@ -368,6 +374,7 @@ export class ConnectionsComponent implements OnInit {
   }
 
   openModal(platform: Platform): void {
+    this.editingConnection.set(null);
     this.modalError.set(null);
     this.form.reset({
       shop: "",
@@ -386,8 +393,29 @@ export class ConnectionsComponent implements OnInit {
     this.modalPlatform.set(platform);
   }
 
+  openEditModal(c: Connection): void {
+    this.editingConnection.set(c);
+    this.modalError.set(null);
+    this.form.reset({
+      shop: "",
+      appId: "",
+      appSecret: "",
+      redirectUri: `${window.location.origin}/api/${c.platform}/callback`,
+      since: c.syncSince ? c.syncSince.slice(0, 10) : isoDaysAgo(30),
+      until: c.syncUntil ? c.syncUntil.slice(0, 10) : isoDaysAgo(0),
+    });
+    if (c.platform === "shopify") {
+      this.form.controls.shop.setValidators([Validators.required]);
+    } else {
+      this.form.controls.shop.clearValidators();
+    }
+    this.form.controls.shop.updateValueAndValidity();
+    this.modalPlatform.set(c.platform);
+  }
+
   closeModal(): void {
     this.modalPlatform.set(null);
+    this.editingConnection.set(null);
     this.modalError.set(null);
   }
 
@@ -398,6 +426,7 @@ export class ConnectionsComponent implements OnInit {
     this.modalError.set(null);
     try {
       const v = this.form.getRawValue();
+      const editing = this.editingConnection();
       const res = await this.api.connectStart(platform, {
         appId: v.appId.trim(),
         appSecret: v.appSecret.trim(),
@@ -405,6 +434,7 @@ export class ConnectionsComponent implements OnInit {
         since: v.since || undefined,
         until: v.until || undefined,
         shop: platform === "shopify" ? v.shop.trim().toLowerCase() : undefined,
+        connectionId: editing?.id,
       });
       window.location.href = res.url;
     } catch (err: any) {
