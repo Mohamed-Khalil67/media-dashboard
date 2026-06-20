@@ -111,11 +111,7 @@ function isoDaysAgo(days: number): string {
             <button class="x" (click)="closeModal()" aria-label="Close">×</button>
           </header>
 
-          <p class="modal-lede">
-            {{ editingConnection()
-              ? 'Update your App ID, secret, or date range. We\'ll re-run the OAuth flow to apply the new credentials.'
-              : 'Enter the credentials for your own ' + platformLabel(mp) + ' app. We\'ll use them to fetch data on your behalf and re-sync every couple of minutes.' }}
-          </p>
+          <p class="modal-lede">{{ modalLede() }}</p>
 
           <form [formGroup]="form" (ngSubmit)="submitModal()">
             @if (mp === 'shopify') {
@@ -311,6 +307,14 @@ export class ConnectionsComponent implements OnInit {
   readonly editingConnection = signal<Connection | null>(null);
   readonly submitting = signal(false);
   readonly modalError = signal<string | null>(null);
+
+  readonly modalLede = computed(() => {
+    const mp = this.modalPlatform();
+    if (this.editingConnection()) {
+      return "Update your App ID, secret, or date range. We'll re-run the OAuth flow to apply the new credentials.";
+    }
+    return `Enter the credentials for your own ${mp ? this.platformLabel(mp) : ""} app. We'll use them to fetch data on your behalf and re-sync every couple of minutes.`;
+  });
 
   readonly form = this.fb.nonNullable.group({
     shop: [""],
