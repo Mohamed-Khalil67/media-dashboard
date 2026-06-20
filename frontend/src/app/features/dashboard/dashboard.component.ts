@@ -335,7 +335,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   /** Only media buyers can trigger writes (sync, connect, delete). Clients are read-only. */
   readonly loadError = signal<string | null>(null);
 
-  /** Bound from the route param /dashboard/:platform — "facebook" or "tiktok". */
+  /** Bound from the route param /dashboard/:platform — "facebook" or "shopify". */
   readonly platform = input<AdPlatform>("facebook");
   readonly platformLabel = computed(() => "Facebook");
 

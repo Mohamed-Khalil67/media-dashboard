@@ -10,9 +10,6 @@ import { RouterLink, RouterLinkActive } from "@angular/router";
       <a routerLink="/dashboard/facebook" routerLinkActive="active">
         <span class="dot dot--fb"></span> Facebook
       </a>
-      <a routerLink="/dashboard/tiktok" routerLinkActive="active">
-        <span class="dot dot--tk"></span> TikTok
-      </a>
       <a routerLink="/dashboard/shopify" routerLinkActive="active">
         <span class="dot dot--sh"></span> Shopify
       </a>
@@ -29,7 +26,6 @@ import { RouterLink, RouterLinkActive } from "@angular/router";
     a.active { color: var(--accent); border-bottom-color: var(--accent); }
     .dot { width: .55rem; height: .55rem; border-radius: 999px; display: inline-block; }
     .dot--fb { background: #1e40af; }
-    .dot--tk { background: #ec4899; }
     .dot--sh { background: #16a34a; }
   `],
 })

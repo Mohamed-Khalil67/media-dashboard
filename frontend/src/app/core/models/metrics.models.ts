@@ -40,7 +40,7 @@ export interface CampaignAggregate {
   name: string;
   accountName: string;
   connectionId: string;
-  platform: "facebook" | "tiktok" | "shopify";
+  platform: "facebook" | "shopify";
   status: string;
   createdAtPlatform: string | null;
   spend: number;

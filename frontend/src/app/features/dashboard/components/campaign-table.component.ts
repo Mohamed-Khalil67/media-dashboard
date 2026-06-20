@@ -297,7 +297,6 @@ const VIEWS_KEY = "campaign-views.v1";
     td.name small { color: var(--muted, #94a3b8); text-transform: capitalize; display: block; font-size: .7rem; }
     .badge { padding: .15rem .5rem; border-radius: 999px; font-size: .7rem; font-weight: 500; text-transform: capitalize; }
     .badge--facebook { background: #dbeafe; color: #1e40af; }
-    .badge--tiktok   { background: #fce7f3; color: #9d174d; }
     .badge--shopify  { background: #dcfce7; color: #166534; }
     .roas { font-weight: 500; }
     .roas--good { color: #16a34a; }
