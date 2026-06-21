@@ -13,6 +13,7 @@ import {
   updateCampaignSchedule,
 } from "./facebook.service";
 import { logger } from "../../lib/logger";
+import { syncUserConnections } from "../../jobs/sync.job";
 
 const router = Router();
 
@@ -32,8 +33,8 @@ function frontendUrl(): string {
  */
 router.post("/connect-start", requireAuth, async (req: Request, res: Response) => {
   const { userId } = req as AuthedRequest;
-  const { appId, appSecret, redirectUri, since, until } = (req.body ?? {}) as {
-    appId?: string; appSecret?: string; redirectUri?: string; since?: string; until?: string;
+  const { appId, appSecret, redirectUri, since, until, connectionId } = (req.body ?? {}) as {
+    appId?: string; appSecret?: string; redirectUri?: string; since?: string; until?: string; connectionId?: string;
   };
 
   if (typeof appId !== "string" || appId.trim().length < 6) {
@@ -64,6 +65,11 @@ router.post("/connect-start", requireAuth, async (req: Request, res: Response) =
       syncUntil: until ? new Date(until) : null,
     },
   });
+
+  // If this is an "edit credentials" call, delete the old connection so no orphan lingers.
+  if (typeof connectionId === "string" && connectionId.length > 0) {
+    await prisma.connection.deleteMany({ where: { id: connectionId, userId } }).catch(() => {});
+  }
 
   const params = new URLSearchParams({
     client_id: appId,
@@ -153,6 +159,11 @@ router.get("/callback", async (req: Request, res: Response) => {
         },
       });
     }
+
+    // Kick off an immediate sync so the dashboard has data within seconds.
+    syncUserConnections(pending.userId).catch((e) =>
+      logger.error({ err: e, userId: pending.userId }, "post-connect facebook sync failed"),
+    );
 
     res.redirect(`${frontendUrl()}/connections?facebook=connected&count=${accounts.length}`);
   } catch (err) {

@@ -149,7 +149,7 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
       <div class="kpi-grid">
         @for (i of [1,2,3,4,5,6]; track i) {<div class="skeleton skeleton-card"></div>}
       </div>
-    } @else if (!kpis()) {
+    } @else if (!kpis() && fbConnections().length === 0) {
       <section class="empty">
         <div class="empty-art" aria-hidden="true">📡</div>
         <h2>Let's pull in your first numbers</h2>
@@ -159,6 +159,13 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
           <a routerLink="/connections" class="cta-ghost">or connect Shopify</a>
         </div>
         <p class="empty-hint">You'll need your own Facebook App ID + App Secret. We'll walk you through it.</p>
+      </section>
+    } @else if (!kpis() && fbConnections().length > 0) {
+      <section class="empty">
+        <div class="empty-art" aria-hidden="true">⏳</div>
+        <h2>Syncing your first data…</h2>
+        <p>Your account is connected. We're pulling in campaigns and insights — this usually takes under a minute.</p>
+        <p class="empty-hint">The dashboard updates automatically. You can also hit <strong>Sync now</strong> above to trigger it immediately.</p>
       </section>
     } @else {
       <section class="kpi-grid">
