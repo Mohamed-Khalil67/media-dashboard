@@ -5,6 +5,7 @@ import { ConnectionsService } from "../../core/connections.service";
 import { StatusBarService } from "../../core/status-bar.service";
 import { Connection, Platform } from "../../core/models/connection.models";
 import { SyncHistoryComponent } from "./sync-history.component";
+import { environment } from "../../../environments/environment";
 
 interface PlatformInfo {
   key: Platform;
@@ -13,6 +14,11 @@ interface PlatformInfo {
   blurb: string;
   brand: string;
   credentialsHelpUrl: string;
+}
+
+/** The backend origin (e.g. http://localhost:3000), derived from apiUrl. */
+function backendOrigin(): string {
+  return environment.apiUrl.replace(/\/api\/?$/, "");
 }
 
 function isoDaysAgo(days: number): string {
@@ -384,7 +390,7 @@ export class ConnectionsComponent implements OnInit {
       shop: "",
       appId: "",
       appSecret: "",
-      redirectUri: `${window.location.origin}/api/${platform}/callback`,
+      redirectUri: `${backendOrigin()}/api/${platform}/callback`,
       since: isoDaysAgo(30),
       until: isoDaysAgo(0),
     });
