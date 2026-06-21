@@ -39,11 +39,11 @@ function sparklinePath(values: number[]): string {
           @if (suffix()) {<span class="suffix">{{ suffix() }}</span>}
         </div>
 
-        @if (sparkPath()) {
-          <svg class="spark" viewBox="0 0 48 18" aria-hidden="true" preserveAspectRatio="none">
+        <svg class="spark" viewBox="0 0 48 18" aria-hidden="true" preserveAspectRatio="none">
+          @if (sparkPath()) {
             <path [attr.d]="sparkPath()" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-        }
+          }
+        </svg>
       </div>
 
       @if (subline(); as s) {
@@ -55,8 +55,8 @@ function sparklinePath(values: number[]): string {
     :host { display: block; height: 100%; }
     .kpi {
       background: var(--card-bg, #fff); border: 1px solid var(--card-bd, #e5e7eb); border-radius: .75rem;
-      padding: .9rem 1.1rem; display: flex; flex-direction: column; gap: .35rem;
-      min-height: 7.5rem; height: 100%;
+      padding: .9rem 1.1rem; display: flex; flex-direction: column; justify-content: space-between;
+      min-height: 7.5rem; height: 100%; gap: 0;
     }
     .head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
     .label {
@@ -76,7 +76,7 @@ function sparklinePath(values: number[]): string {
     .pill--up   { background: var(--success-soft); color: var(--success-strong); }
     .pill--down { background: var(--danger-soft); color: var(--danger-strong); }
 
-    .value-row { display: flex; align-items: flex-end; justify-content: space-between; gap: .5rem; }
+    .value-row { display: flex; align-items: flex-end; justify-content: space-between; gap: .5rem; margin: .3rem 0 .1rem; }
 
     .value {
       font-size: 1.7rem; font-weight: 500; color: var(--text, #0d1117); line-height: 1.1;
