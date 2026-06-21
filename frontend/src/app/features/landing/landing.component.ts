@@ -16,7 +16,10 @@ import { RouterLink } from "@angular/router";
     </div>
 
     <main class="wrap">
-      <div class="brand">📺 Media Dashboard</div>
+      <div class="brand">
+        <span class="signal-dot" aria-hidden="true"></span>
+        <span>Media Dashboard</span>
+      </div>
 
       <section class="hero">
         <h1>One dashboard for your <span class="grad">Facebook Ads</span> and <span class="grad">Shopify</span>.</h1>
@@ -71,12 +74,14 @@ import { RouterLink } from "@angular/router";
     }
 
     .wrap { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
-    .brand { font-weight: 700; font-size: 1.1rem; color: #f1f5f9; }
+    .brand { font-weight: 700; font-size: 1rem; color: #f1f5f9; display: flex; align-items: center; gap: .5rem; font-family: "Space Grotesk", system-ui, sans-serif; letter-spacing: -.01em; }
+    .signal-dot { width: 8px; height: 8px; border-radius: 50%; background: #00e5a0; flex-shrink: 0; animation: sig 2.5s ease-in-out infinite; box-shadow: 0 0 0 0 rgba(0,229,160,.5); }
+    @keyframes sig { 0% { box-shadow: 0 0 0 0 rgba(0,229,160,.5); } 60% { box-shadow: 0 0 0 5px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } }
 
     .hero { text-align: center; margin: 5rem auto 4rem; max-width: 760px; }
-    .hero h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 800; line-height: 1.1; margin: 0 0 1.25rem; color: #f8fafc; }
+    .hero h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 700; line-height: 1.1; margin: 0 0 1.25rem; color: #f8fafc; font-family: "Space Grotesk", system-ui, sans-serif; letter-spacing: -.02em; }
     .grad {
-      background: linear-gradient(135deg, #818cf8, #c084fc);
+      background: linear-gradient(135deg, #00e5a0, #00b8d4);
       -webkit-background-clip: text; background-clip: text; color: transparent;
     }
     .lede { font-size: 1.1rem; color: #cbd5e1; line-height: 1.6; margin: 0 auto 2rem; max-width: 600px; }
@@ -87,8 +92,8 @@ import { RouterLink } from "@angular/router";
       font-size: 1rem; transition: opacity .15s, transform .1s; display: inline-block;
     }
     .btn-primary {
-      background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff;
-      box-shadow: 0 8px 24px rgba(79, 70, 229, .4);
+      background: linear-gradient(135deg, #00976a, #00c688); color: #fff;
+      box-shadow: 0 8px 24px rgba(0, 184, 122, .4);
     }
     .btn-primary:hover { opacity: .92; transform: translateY(-1px); }
     .btn-ghost { background: rgba(255,255,255,.05); color: #e2e8f0; border: 1px solid rgba(255,255,255,.15); }

@@ -8,7 +8,10 @@ import { ThemeService } from "../core/theme.service";
   imports: [RouterLink, RouterLinkActive, RouterOutlet],
   template: `
     <header class="shell-header">
-      <div class="brand">📊 Media Dashboard</div>
+      <div class="brand">
+        <span class="signal-dot" aria-hidden="true"></span>
+        <span class="brand-name">Media Dashboard</span>
+      </div>
       <nav>
         <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">Dashboard</a>
         <a routerLink="/connections" routerLinkActive="active">Connections</a>
@@ -62,7 +65,19 @@ import { ThemeService } from "../core/theme.service";
       background: var(--card-bg);
       border-bottom: 1px solid var(--card-bd);
     }
-    .brand { font-weight: 600; font-size: 1.05rem; color: var(--text); }
+    .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; font-size: 1rem; color: var(--text); font-family: var(--font-display, "Space Grotesk", system-ui, sans-serif); letter-spacing: -.01em; }
+    .signal-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      background: var(--accent);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent);
+      animation: signal-pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes signal-pulse {
+      0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+      60%  { box-shadow: 0 0 0 5px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    .brand-name { line-height: 1; }
     nav { display: flex; gap: 1rem; flex: 1; }
     nav a { text-decoration: none; color: var(--text-muted); padding: .35rem .75rem; border-radius: .375rem; }
     nav a:hover { background: var(--ghost-bg); }

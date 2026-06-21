@@ -138,7 +138,7 @@ import { StatusBarService } from "../../core/status-bar.service";
 
     .card-header { text-align: center; margin-bottom: 1.75rem; }
     .logo { font-size: 2.75rem; margin-bottom: .75rem; }
-    h1 { margin: 0 0 .3rem; font-size: 1.65rem; color: #0f172a; font-weight: 700; }
+    h1 { margin: 0 0 .3rem; font-size: 1.65rem; color: #0f172a; font-weight: 700; font-family: "Space Grotesk", system-ui, sans-serif; letter-spacing: -.02em; }
     .sub { margin: 0; color: #64748b; font-size: .95rem; }
 
     /* Alerts */
@@ -186,7 +186,7 @@ import { StatusBarService } from "../../core/status-bar.service";
     .field { display: flex; flex-direction: column; gap: .35rem; margin-bottom: .9rem; }
     .label-row { display: flex; justify-content: space-between; align-items: center; }
     label { font-size: .85rem; font-weight: 500; color: #374151; }
-    .forgot { font-size: .78rem; color: #4f46e5; text-decoration: none; }
+    .forgot { font-size: .78rem; color: #009e6d; text-decoration: none; }
     .forgot:hover { text-decoration: underline; }
     input {
       padding: .7rem .9rem; border: 1.5px solid #d1d5db; border-radius: .5rem;
@@ -202,12 +202,13 @@ import { StatusBarService } from "../../core/status-bar.service";
     /* Submit */
     .submit-btn {
       width: 100%; padding: .8rem; margin-top: .25rem;
-      background: linear-gradient(135deg, #4f46e5, #6366f1);
+      background: linear-gradient(135deg, #00976a, #00c688);
       color: #fff; border: 0; border-radius: .6rem;
       font-weight: 600; font-size: 1rem; cursor: pointer;
       display: flex; align-items: center; justify-content: center; gap: .5rem;
-      box-shadow: 0 4px 14px rgba(79,70,229,.4);
+      box-shadow: 0 4px 14px rgba(0, 184, 122, .4);
       transition: opacity .15s, transform .1s;
+      font-family: "Space Grotesk", system-ui, sans-serif;
     }
     .submit-btn:hover:not(:disabled) { opacity: .92; transform: translateY(-1px); }
     .submit-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
@@ -220,7 +221,7 @@ import { StatusBarService } from "../../core/status-bar.service";
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .footer-link { text-align: center; font-size: .875rem; color: #64748b; margin: 1.25rem 0 0; }
-    .footer-link a { color: #4f46e5; font-weight: 500; text-decoration: none; }
+    .footer-link a { color: #009e6d; font-weight: 500; text-decoration: none; }
     .footer-link a:hover { text-decoration: underline; }
   `],
 })

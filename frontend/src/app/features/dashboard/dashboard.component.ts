@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit, computed, effect, inject, input, signal } from "@angular/core";
+import { Component, HostListener, OnDestroy, OnInit, computed, effect, inject, input, signal } from "@angular/core";
 import { RouterLink } from "@angular/router";
 import { CurrencyPipe, DecimalPipe } from "@angular/common";
 import { AuthService } from "../../core/auth.service";
@@ -49,7 +49,7 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
         <h1>{{ platformLabel() }} Dashboard</h1>
         <div class="status-row">
           <span class="muted">Welcome back, {{ auth.user()?.name ?? auth.user()?.email }}.</span>
-          <app-refresh-bar [lastUpdated]="lastUpdated()" [refreshing]="refreshing()" (refresh)="reload()" />
+          <app-refresh-bar [lastUpdated]="lastUpdated()" [refreshing]="refreshing()" [nextRefreshIn]="nextRefreshIn()" (refresh)="reload()" />
           @if (kpis() && campaigns().length > 0) {
             <span class="pill pill--info">
               {{ campaigns().length }} campaigns • {{ activeAccountCount() }} {{ activeAccountCount() === 1 ? 'account' : 'accounts' }}
@@ -169,9 +169,9 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
       </section>
     } @else {
       <section class="kpi-grid">
-        <app-kpi-card label="Spend"   [value]="kpis()!.spend"     prefix="E£" [delta]="kpis()!.delta.spend"   [previous]="kpis()!.previous.spend" />
-        <app-kpi-card label="Revenue" [value]="kpis()!.revenue"   prefix="E£" [delta]="kpis()!.delta.revenue" [previous]="kpis()!.previous.revenue" />
-        <app-kpi-card label="ROAS"    [value]="kpis()!.roas"      suffix="x" format="1.2-2" [delta]="kpis()!.delta.roas" [previous]="kpis()!.previous.roas" />
+        <app-kpi-card label="Spend"   [value]="kpis()!.spend"     prefix="E£" [delta]="kpis()!.delta.spend"   [previous]="kpis()!.previous.spend"   [trend]="spendTrend()" />
+        <app-kpi-card label="Revenue" [value]="kpis()!.revenue"   prefix="E£" [delta]="kpis()!.delta.revenue" [previous]="kpis()!.previous.revenue" [trend]="revenueTrend()" />
+        <app-kpi-card label="ROAS"    [value]="kpis()!.roas"      suffix="x" format="1.2-2" [delta]="kpis()!.delta.roas" [previous]="kpis()!.previous.roas" [trend]="roasTrend()" />
         <app-kpi-card label="Orders"  [value]="kpis()!.orders"               [delta]="kpis()!.delta.orders" [previous]="kpis()!.previous.orders" />
         <app-kpi-card label="AOV"     [value]="kpis()!.aov"       prefix="E£" format="1.2-2" [subtext]="aovSubtext()" />
         <app-kpi-card label="CTR"     [value]="kpis()!.ctr * 100" suffix="%" format="1.2-2" [subtext]="ctrSubtext()" />
@@ -235,7 +235,7 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
   `,
   styles: [`
     .page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .page-head h1 { margin: 0 0 .25rem; color: var(--text); }
+    .page-head h1 { margin: 0 0 .25rem; color: var(--text); font-family: var(--font-display, "Space Grotesk", system-ui, sans-serif); letter-spacing: -.02em; }
     .muted { color: var(--text-muted); margin: 0; }
     .status-row { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
     .pill { display: inline-flex; align-items: center; gap: .35rem; padding: .2rem .55rem; background: var(--ghost-bg); border: 1px solid var(--card-bd); border-radius: 999px; font-size: .75rem; color: var(--text-muted); }
@@ -243,19 +243,19 @@ import { DashboardTabsComponent } from "./dashboard-tabs.component";
     .actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
     .ico { font-size: .95rem; }
     .lbl { font-weight: 500; color: var(--text); }
-    .sync { background: #4f46e5; color: #fff; border: 0; padding: .5rem 1rem; border-radius: .5rem; cursor: pointer; font-weight: 500; font-size: .85rem; }
-    .sync:hover:not(:disabled) { background: #4338ca; }
+    .sync { background: var(--accent); color: var(--accent-on); border: 0; padding: .5rem 1rem; border-radius: .5rem; cursor: pointer; font-weight: 500; font-size: .85rem; font-family: var(--font-display, "Space Grotesk", system-ui, sans-serif); }
+    .sync:hover:not(:disabled) { opacity: .88; }
     .sync:disabled { opacity: .55; cursor: not-allowed; }
 
     .acct-menu { padding: .25rem; min-width: 18rem; }
     .acct-search { width: 100%; border: 1px solid var(--input-bd); border-radius: .375rem; padding: .4rem .55rem; background: var(--card-bg); color: var(--text); font-size: .85rem; outline: none; margin-bottom: .25rem; }
-    .acct-search:focus { border-color: #4f46e5; }
+    .acct-search:focus { border-color: var(--accent); outline: none; }
     .acct-list { max-height: 16rem; overflow-y: auto; }
     .acct-item { width: 100%; display: flex; justify-content: space-between; align-items: center; background: transparent; border: 0; padding: .45rem .55rem; border-radius: .375rem; cursor: pointer; color: var(--text); font-size: .85rem; text-align: left; }
     .acct-item:hover { background: var(--ghost-bg); }
     .acct-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
     .acct-name { display: flex; align-items: center; gap: .35rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .check { color: #4f46e5; font-weight: 600; }
+    .check { color: var(--accent); font-weight: 600; }
     .divider { height: 1px; background: var(--card-bd); margin: .25rem .25rem; }
     .exp-dot { color: #f59e0b; font-size: .6rem; }
     .empty-small { padding: 1rem; text-align: center; color: var(--text-muted); font-size: .85rem; }
@@ -363,6 +363,19 @@ export class DashboardComponent implements OnInit, OnDestroy {
   readonly refreshing = signal(false);
   readonly nowTick = signal(Date.now());
 
+  readonly AUTO_REFRESH_MS = 90_000;
+  readonly nextRefreshAt = signal<Date | null>(null);
+  readonly nextRefreshIn = computed(() => {
+    const t = this.nextRefreshAt();
+    if (!t) return null;
+    return Math.max(0, Math.round((t.getTime() - this.nowTick()) / 1000));
+  });
+
+  /** Sparkline series derived from the timeseries signal. */
+  readonly spendTrend  = computed(() => this.timeseries().map(p => p.spend));
+  readonly revenueTrend = computed(() => this.timeseries().map(p => p.revenue));
+  readonly roasTrend   = computed(() => this.timeseries().map(p => p.roas));
+
   /** Connections relevant to the current platform tab. */
   readonly fbConnections = computed(() =>
     this.connections().filter((c) => c.platform === this.platform())
@@ -457,6 +470,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
   });
 
   private tickTimer: ReturnType<typeof setInterval> | null = null;
+  private autoRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     // React to platform changes (route param change) — reset selected account + reload data.
@@ -471,15 +485,35 @@ export class DashboardComponent implements OnInit, OnDestroy {
     });
   }
 
+  @HostListener("document:keydown", ["$event"])
+  onKeydown(e: KeyboardEvent): void {
+    if (e.key !== "r" && e.key !== "R") return;
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+    const tag = (document.activeElement as HTMLElement)?.tagName ?? "";
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    this.reload();
+  }
+
   ngOnInit(): void {
     this.loadConnections();
     this.reload();
-    // Tick every 10s to keep "Last updated Xs ago" fresh without re-fetching data.
-    this.tickTimer = setInterval(() => this.nowTick.set(Date.now()), 10_000);
+    // Tick every second to drive the countdown + relative-time freshness.
+    this.tickTimer = setInterval(() => this.nowTick.set(Date.now()), 1_000);
+    this.scheduleAutoRefresh();
   }
 
   ngOnDestroy(): void {
     if (this.tickTimer) clearInterval(this.tickTimer);
+    if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
+  }
+
+  private scheduleAutoRefresh(): void {
+    if (this.autoRefreshTimer) clearInterval(this.autoRefreshTimer);
+    this.nextRefreshAt.set(new Date(Date.now() + this.AUTO_REFRESH_MS));
+    this.autoRefreshTimer = setInterval(() => {
+      if (document.visibilityState === "visible") this.reload();
+      this.scheduleAutoRefresh();
+    }, this.AUTO_REFRESH_MS);
   }
 
   async loadConnections(): Promise<void> {
@@ -549,6 +583,7 @@ export class DashboardComponent implements OnInit, OnDestroy {
       this.alerts.set(alerts);
       this.lastUpdated.set(new Date());
       this.nowTick.set(Date.now());
+      this.scheduleAutoRefresh();
     } catch {
       this.loadError.set("Could not load dashboard data. Backend may be unreachable.");
     } finally {

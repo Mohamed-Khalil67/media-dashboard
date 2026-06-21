@@ -121,7 +121,7 @@ import { StatusBarService } from "../../core/status-bar.service";
 
     .card-header { text-align: center; margin-bottom: 1.75rem; }
     .logo { font-size: 2.75rem; margin-bottom: .75rem; }
-    h1 { margin: 0 0 .3rem; font-size: 1.65rem; color: #0f172a; font-weight: 700; }
+    h1 { margin: 0 0 .3rem; font-size: 1.65rem; color: #0f172a; font-weight: 700; font-family: "Space Grotesk", system-ui, sans-serif; letter-spacing: -.02em; }
     .sub { margin: 0; color: #64748b; font-size: .95rem; }
 
     .alert {
@@ -164,23 +164,24 @@ import { StatusBarService } from "../../core/status-bar.service";
       font-size: .95rem; color: #0f172a; transition: border-color .15s, box-shadow .15s;
       background: #f9fafb;
     }
-    input:focus { outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79,70,229,.12); background: #fff; }
+    input:focus { outline: none; border-color: #009e6d; box-shadow: 0 0 0 3px rgba(0,158,109,.12); background: #fff; }
     input.input-error { border-color: #ef4444; }
     input.input-error:focus { box-shadow: 0 0 0 3px rgba(239,68,68,.12); }
     input::placeholder { color: #9ca3af; }
     .field-err { font-size: .75rem; color: #ef4444; margin-top: -.1rem; }
 
     .strength-bar { height: 3px; background: #e2e8f0; border-radius: 2px; overflow: hidden; margin-top: .2rem; }
-    .strength-fill { height: 100%; background: linear-gradient(90deg, #4f46e5, #6366f1); border-radius: 2px; transition: width .3s; }
+    .strength-fill { height: 100%; background: linear-gradient(90deg, #00976a, #00c688); border-radius: 2px; transition: width .3s; }
 
     .submit-btn {
       width: 100%; padding: .8rem; margin-top: .25rem;
-      background: linear-gradient(135deg, #4f46e5, #6366f1);
+      background: linear-gradient(135deg, #00976a, #00c688);
       color: #fff; border: 0; border-radius: .6rem;
       font-weight: 600; font-size: 1rem; cursor: pointer;
       display: flex; align-items: center; justify-content: center; gap: .5rem;
-      box-shadow: 0 4px 14px rgba(79,70,229,.4);
+      box-shadow: 0 4px 14px rgba(0,184,122,.4);
       transition: opacity .15s, transform .1s;
+      font-family: "Space Grotesk", system-ui, sans-serif;
     }
     .submit-btn:hover:not(:disabled) { opacity: .92; transform: translateY(-1px); }
     .submit-btn:disabled { opacity: .55; cursor: not-allowed; transform: none; }
@@ -193,7 +194,7 @@ import { StatusBarService } from "../../core/status-bar.service";
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .footer-link { text-align: center; font-size: .875rem; color: #64748b; margin: 1.25rem 0 0; }
-    .footer-link a { color: #4f46e5; font-weight: 500; text-decoration: none; }
+    .footer-link a { color: #009e6d; font-weight: 500; text-decoration: none; }
     .footer-link a:hover { text-decoration: underline; }
   `],
 })

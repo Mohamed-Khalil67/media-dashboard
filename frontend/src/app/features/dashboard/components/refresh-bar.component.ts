@@ -1,15 +1,5 @@
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, input, output, signal } from "@angular/core";
 
-/**
- * Shared dashboard chrome: a "Last updated Xs ago" pill plus a manual refresh button.
- *
- * Used by both the Facebook and Shopify dashboards so the freshness affordance is
- * visually identical across panels (per [[feedback-dashboard-parity]]).
- *
- * The component owns its own 10s ticker to keep the relative-time string fresh
- * without bothering the parent; the parent only owns the `lastUpdated` signal
- * (when it set it = when its latest fetch resolved) and the `refreshing` flag.
- */
 @Component({
   selector: "app-refresh-bar",
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -19,15 +9,23 @@ import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, input,
         @if (refreshing()) {
           <span class="dot-anim" aria-hidden="true"></span> Refreshing…
         } @else {
-          <span class="dot dot--ok" aria-hidden="true"></span> Last updated {{ relTime() }}
+          <span class="dot dot--ok" aria-hidden="true"></span> Updated {{ relTime() }}
         }
       </span>
     }
+
+    @if (!refreshing() && nextRefreshIn() !== null) {
+      <span class="next-pill" [title]="'Auto-refresh every 90 seconds'">
+        ↻ {{ nextRefreshIn() }}s
+      </span>
+    }
+
     <button
       type="button"
       class="refresh-btn"
       [disabled]="refreshing()"
       (click)="refresh.emit()"
+      title="Refresh (R)"
       aria-label="Refresh dashboard data">
       <span aria-hidden="true">↻</span>
       <span class="refresh-label">Refresh</span>
@@ -43,10 +41,19 @@ import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, input,
       color: var(--text-muted); font-size: .78rem;
       font-variant-numeric: tabular-nums;
     }
-    .pill--refreshing { color: var(--accent); }
+    .pill--refreshing { color: var(--accent); border-color: var(--accent-soft); }
+
+    .next-pill {
+      display: inline-flex; align-items: center; gap: .25rem;
+      padding: .2rem .5rem; border-radius: 999px;
+      background: var(--accent-soft); color: var(--accent);
+      font-size: .72rem; font-weight: 600; font-variant-numeric: tabular-nums;
+      font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+      letter-spacing: -.01em;
+    }
 
     .dot { width: .45rem; height: .45rem; border-radius: 50%; display: inline-block; }
-    .dot--ok { background: #16a34a; }
+    .dot--ok { background: var(--accent); }
     .dot-anim {
       width: .45rem; height: .45rem; border-radius: 50%;
       background: currentColor; display: inline-block;
@@ -62,18 +69,18 @@ import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, input,
       padding: .3rem .65rem; border-radius: .4rem;
       background: var(--card-bg); border: 1px solid var(--card-bd);
       color: var(--text); font-size: .8rem; cursor: pointer;
+      font-family: var(--font-display, "Space Grotesk", system-ui, sans-serif);
     }
-    .refresh-btn:hover:not(:disabled) { background: var(--ghost-bg); }
+    .refresh-btn:hover:not(:disabled) { background: var(--ghost-bg); border-color: var(--accent); color: var(--accent); }
     .refresh-btn:disabled { opacity: .5; cursor: not-allowed; }
     .refresh-label { line-height: 1; }
   `],
 })
 export class RefreshBarComponent implements OnInit, OnDestroy {
-  /** When the most recent fetch resolved. Null until the first fetch completes. */
   readonly lastUpdated = input<Date | null>(null);
-  /** True while a fetch is in flight — disables the button and animates the pill. */
   readonly refreshing = input<boolean>(false);
-  /** Emitted when the user clicks the manual refresh button. */
+  /** Seconds until the next auto-refresh fires. Null to hide the countdown. */
+  readonly nextRefreshIn = input<number | null>(null);
   readonly refresh = output<void>();
 
   private readonly nowTick = signal(Date.now());
@@ -92,9 +99,7 @@ export class RefreshBarComponent implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
-    // Tick once every 10s so the relative-time string stays current without
-    // re-fetching any data. Cheap; doesn't touch the network.
-    this.tickTimer = setInterval(() => this.nowTick.set(Date.now()), 10_000);
+    this.tickTimer = setInterval(() => this.nowTick.set(Date.now()), 1_000);
   }
 
   ngOnDestroy(): void {

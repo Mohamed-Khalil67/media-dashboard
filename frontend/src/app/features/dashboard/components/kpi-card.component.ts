@@ -1,6 +1,21 @@
 import { ChangeDetectionStrategy, Component, computed, input } from "@angular/core";
 import { DecimalPipe, PercentPipe } from "@angular/common";
 
+/** Compute an SVG polyline path for a tiny sparkline in a 48×18 viewport. */
+function sparklinePath(values: number[]): string {
+  if (values.length < 2) return "";
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const W = 48, H = 16;
+  const pts = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * W;
+    const y = H - ((v - min) / range) * H;
+    return `${x.toFixed(1)},${y.toFixed(2)}`;
+  });
+  return `M ${pts.join(" L ")}`;
+}
+
 @Component({
   selector: "app-kpi-card",
   imports: [DecimalPipe, PercentPipe],
@@ -17,10 +32,18 @@ import { DecimalPipe, PercentPipe } from "@angular/common";
         }
       </header>
 
-      <div class="value">
-        @if (prefix()) {<span class="prefix">{{ prefix() }}</span>}
-        {{ value() | number: format() }}
-        @if (suffix()) {<span class="suffix">{{ suffix() }}</span>}
+      <div class="value-row">
+        <div class="value">
+          @if (prefix()) {<span class="prefix">{{ prefix() }}</span>}
+          {{ value() | number: format() }}
+          @if (suffix()) {<span class="suffix">{{ suffix() }}</span>}
+        </div>
+
+        @if (sparkPath()) {
+          <svg class="spark" viewBox="0 0 48 18" aria-hidden="true" preserveAspectRatio="none">
+            <path [attr.d]="sparkPath()" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+        }
       </div>
 
       @if (subline(); as s) {
@@ -31,29 +54,45 @@ import { DecimalPipe, PercentPipe } from "@angular/common";
   styles: [`
     :host { display: block; height: 100%; }
     .kpi {
-      background: var(--card-bg, #fff); border: 1px solid var(--card-bd, #e2e8f0); border-radius: .75rem;
+      background: var(--card-bg, #fff); border: 1px solid var(--card-bd, #e5e7eb); border-radius: .75rem;
       padding: .9rem 1.1rem; display: flex; flex-direction: column; gap: .35rem;
       min-height: 7.5rem; height: 100%;
     }
     .head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-    .label { color: var(--text-muted, #64748b); font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
+    .label {
+      color: var(--text-muted, #4b5563); font-size: .7rem;
+      text-transform: uppercase; letter-spacing: .07em; font-weight: 600;
+      font-family: var(--font-display, "Space Grotesk", system-ui, sans-serif);
+    }
 
     .pill {
       display: inline-flex; align-items: center; gap: .2rem;
       padding: .15rem .5rem; border-radius: 999px;
       font-size: .7rem; font-weight: 600; font-variant-numeric: tabular-nums;
-      background: var(--ghost-bg, #f1f5f9); color: var(--text-muted, #64748b);
+      background: var(--ghost-bg, #f3f3f0); color: var(--text-muted, #4b5563);
       white-space: nowrap;
     }
     .pill .arrow { font-size: .65rem; line-height: 1; }
     .pill--up   { background: var(--success-soft); color: var(--success-strong); }
     .pill--down { background: var(--danger-soft); color: var(--danger-strong); }
 
-    .value { font-size: 1.7rem; font-weight: 600; color: var(--text, #0f172a); line-height: 1.1; font-variant-numeric: tabular-nums; }
-    .prefix, .suffix { color: var(--muted, #94a3b8); font-weight: 400; font-size: 1.05rem; }
+    .value-row { display: flex; align-items: flex-end; justify-content: space-between; gap: .5rem; }
+
+    .value {
+      font-size: 1.7rem; font-weight: 500; color: var(--text, #0d1117); line-height: 1.1;
+      font-family: var(--font-mono, "JetBrains Mono", ui-monospace, monospace);
+      font-variant-numeric: tabular-nums;
+    }
+    .prefix, .suffix { color: var(--muted, #9ca3af); font-weight: 400; font-size: 1rem; }
+
+    .spark {
+      width: 48px; height: 18px; flex-shrink: 0;
+      color: var(--accent); opacity: .75;
+      margin-bottom: .1rem;
+    }
 
     .sub {
-      color: var(--text-muted, #64748b); font-size: .76rem; line-height: 1.3;
+      color: var(--text-muted, #4b5563); font-size: .75rem; line-height: 1.3;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
   `],
@@ -66,14 +105,12 @@ export class KpiCardComponent {
   readonly suffix = input<string | null>(null);
   readonly delta = input<number | null>(null);
   readonly previous = input<number | null>(null);
-  /**
-   * Free-form context line below the value (e.g. "across 1,240 orders"). When
-   * `previous` is set, the auto "vs <prev> last period" subline takes priority
-   * so we always show the comparison the user expects with a delta pill.
-   */
   readonly subtext = input<string | null>(null);
+  /** Daily series for the sparkline. Omit or pass [] to hide the spark. */
+  readonly trend = input<number[]>([]);
 
-  /** Resolved subline: previous-period comparison wins; otherwise the caller's free text. */
+  readonly sparkPath = computed(() => sparklinePath(this.trend()));
+
   readonly subline = computed<string | null>(() => {
     const prev = this.previous();
     if (prev !== null && prev !== undefined) {
@@ -84,7 +121,6 @@ export class KpiCardComponent {
     return sub && sub.trim().length > 0 ? sub : null;
   });
 
-  /** Mirror Angular's DecimalPipe formatting for the previous-period number. */
   private formatNumber(n: number): string {
     const fmt = this.format() ?? "1.0-0";
     const m = /^(\d+)\.(\d+)-(\d+)$/.exec(fmt);
