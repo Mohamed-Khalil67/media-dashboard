@@ -34,7 +34,7 @@ import { StatusBarService } from "../../core/status-bar.service";
           <span class="alert-icon">🔒</span>
           <div>
             <strong>Access denied</strong>
-            <p>This email isn't authorized for this workspace. Contact your administrator if you believe this is a mistake.</p>
+            <p>Could not sign in with that account. Try a different email or create a new account.</p>
           </div>
         </div>
       }

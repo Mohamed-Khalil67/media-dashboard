@@ -48,10 +48,6 @@ export const routes: Routes = [
         path: "connections",
         loadComponent: () => import("./features/connections/connections.component").then((m) => m.ConnectionsComponent),
       },
-      {
-        path: "alerts",
-        loadComponent: () => import("./features/alerts/alerts.component").then((m) => m.AlertsComponent),
-      },
     ],
   },
   { path: "**", redirectTo: "" },

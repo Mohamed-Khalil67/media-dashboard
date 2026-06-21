@@ -15,7 +15,6 @@ import { ThemeService } from "../core/theme.service";
       <nav>
         <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">Dashboard</a>
         <a routerLink="/connections" routerLinkActive="active">Connections</a>
-        <a routerLink="/alerts" routerLinkActive="active">Alerts</a>
       </nav>
       <div class="user">
         <button type="button" class="theme" (click)="theme.toggle()"
