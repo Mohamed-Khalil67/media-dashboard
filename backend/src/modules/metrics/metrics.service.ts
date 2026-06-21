@@ -268,8 +268,7 @@ export async function getCampaignAggregates(userId: string, range: string, since
         deliveryStalled,
         anomalous,
       };
-    })
-    .filter((c) => c.spend > 0);
+    });
 }
 
 function isAnomalous(series: number[]): boolean {

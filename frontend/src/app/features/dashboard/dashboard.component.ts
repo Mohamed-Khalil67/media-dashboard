@@ -576,8 +576,11 @@ export class DashboardComponent implements OnInit, OnDestroy {
         this.api.getCampaigns(r, opts),
         this.alertsApi.list(connId, this.platform()),
       ]);
-      const empty = kpis.spend === 0 && kpis.revenue === 0 && campaigns.length === 0;
-      this.kpis.set(empty ? null : kpis);
+      // Only treat as "no data" when there are literally no campaigns at all.
+      // If campaigns exist but have 0 spend in the window, show the KPI cards
+      // with zeros — the user has data, just none in this date range.
+      const noData = campaigns.length === 0 && kpis.spend === 0 && kpis.impressions === 0;
+      this.kpis.set(noData ? null : kpis);
       this.timeseries.set(points);
       this.campaigns.set(campaigns);
       this.alerts.set(alerts);
