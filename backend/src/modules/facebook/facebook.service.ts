@@ -58,29 +58,66 @@ export async function listAdAccounts(accessToken: string): Promise<Array<{ id: s
 
 const DEFAULT_LOOKBACK_DAYS = Number(process.env.FB_SYNC_LOOKBACK_DAYS ?? 30);
 
+type CampaignPage = { data: FacebookCampaign[]; paging?: { next?: string } };
+
 export async function fetchCampaigns(connection: Connection): Promise<FacebookCampaign[]> {
   const token = decrypt(connection.accessToken);
-  // If the user picked a since/until window at connect time, honor it via time_range.
-  // Otherwise fall back to the rolling lookback preset.
   const insightFields = buildInsightFields(connection);
-  const res = await axios.get(`${GRAPH_BASE}/${connection.accountId}/campaigns`, {
+  const campaigns: FacebookCampaign[] = [];
+
+  // First page — explicit params
+  const first = await axios.get<CampaignPage>(`${GRAPH_BASE}/${connection.accountId}/campaigns`, {
     params: {
       access_token: token,
       fields: `id,name,status,created_time,${insightFields}`,
       limit: 100,
     },
   });
-  return res.data.data ?? [];
+  campaigns.push(...(first.data.data ?? []));
+
+  // Follow cursor pagination — subsequent page URLs already include all params
+  let nextUrl: string | null = first.data.paging?.next ?? null;
+  while (nextUrl) {
+    const page = await axios.get<CampaignPage>(nextUrl);
+    campaigns.push(...(page.data.data ?? []));
+    nextUrl = page.data.paging?.next ?? null;
+  }
+
+  return campaigns;
 }
 
+/**
+ * Build the Facebook insights field expression for a sync call.
+ *
+ * - First sync (no lastSyncAt): fetch from syncSince (or DEFAULT_LOOKBACK_DAYS ago) to today.
+ * - Incremental sync: fetch from (lastSyncAt - 2 days) to today.
+ *   The 2-day lookback overlap catches delayed conversions that Facebook back-fills.
+ *   syncSince acts as a floor — we never go earlier than the user's chosen start.
+ *
+ * We never use syncUntil as the query end — it was the user's initial import window,
+ * not a cap on future syncs. Always end at today so fresh data keeps arriving.
+ */
 function buildInsightFields(connection: Connection): string {
   const metrics = "date_start,spend,impressions,clicks,actions,purchase_roas,frequency";
-  if (connection.syncSince && connection.syncUntil) {
-    const since = isoDate(connection.syncSince);
-    const until = isoDate(connection.syncUntil);
-    return `insights.time_range({since:"${since}",until:"${until}"}).time_increment(1){${metrics}}`;
+  const today = isoDate(new Date());
+
+  let sinceDate: Date;
+
+  if (connection.lastSyncAt) {
+    // Incremental: 2-day overlap to catch delayed FB attribution windows.
+    sinceDate = new Date(connection.lastSyncAt.getTime() - 2 * 24 * 60 * 60 * 1000);
+    // Never go earlier than the user's chosen historical start.
+    if (connection.syncSince && sinceDate < connection.syncSince) {
+      sinceDate = connection.syncSince;
+    }
+  } else if (connection.syncSince) {
+    sinceDate = connection.syncSince;
+  } else {
+    sinceDate = new Date(Date.now() - DEFAULT_LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   }
-  return `insights.date_preset(last_${DEFAULT_LOOKBACK_DAYS}d).time_increment(1){${metrics}}`;
+
+  const since = isoDate(sinceDate);
+  return `insights.time_range({since:"${since}",until:"${today}"}).time_increment(1){${metrics}}`;
 }
 
 function isoDate(d: Date): string {

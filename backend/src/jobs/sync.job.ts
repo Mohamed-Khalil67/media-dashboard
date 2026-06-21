@@ -9,7 +9,7 @@ import { syncShopify } from "./sync.shopify";
 // Default: every 2 minutes — the SaaS pivot promised near-realtime refresh.
 const SCHEDULE = process.env.SYNC_CRON ?? "*/2 * * * *";
 const RETENTION_SCHEDULE = process.env.RETENTION_CRON ?? "0 3 * * *";
-const ACTIVITY_WINDOW_MINUTES = Number(process.env.ACTIVITY_WINDOW_MINUTES ?? 5);
+const ACTIVITY_WINDOW_MINUTES = Number(process.env.ACTIVITY_WINDOW_MINUTES ?? 30);
 const ACTIVITY_WINDOW_MS = ACTIVITY_WINDOW_MINUTES * 60 * 1000;
 // Skip a connection if it was synced within this many seconds — prevents the
 // 2-minute cron from re-syncing already-fresh data and burning API quota.
