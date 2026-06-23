@@ -13,7 +13,27 @@ import { logger } from "./lib/logger";
 
 export const app = express();
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      connectSrc: [
+        "'self'",
+        "https://identitytoolkit.googleapis.com",
+        "https://securetoken.googleapis.com",
+        "https://www.googleapis.com",
+        "https://firebaseinstallations.googleapis.com",
+        "https://firebase.googleapis.com",
+      ],
+      imgSrc: ["'self'", "data:", "blob:"],
+      workerSrc: ["'self'", "blob:"],
+    },
+  },
+}));
 app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:4200", credentials: true }));
 app.use(express.json());
 
