@@ -15,7 +15,6 @@ import { ThemeService } from "../core/theme.service";
       <nav>
         <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">Dashboard</a>
         <a routerLink="/connections" routerLinkActive="active">Connections</a>
-        <a class="feedback-link" href="https://docs.google.com/forms/d/e/1FAIpQLScPwD2rY6vZ7549D9Aw0JC-OooPdzE_JpZrpicPMuOZzCTEAA/viewform" target="_blank" rel="noopener">Feedback</a>
       </nav>
       <div class="user">
         <button type="button" class="theme" (click)="theme.toggle()"
@@ -56,6 +55,14 @@ import { ThemeService } from "../core/theme.service";
     <main class="shell-main">
       <router-outlet />
     </main>
+
+    <a class="fab-feedback"
+       href="https://docs.google.com/forms/d/e/1FAIpQLScPwD2rY6vZ7549D9Aw0JC-OooPdzE_JpZrpicPMuOZzCTEAA/viewform"
+       target="_blank" rel="noopener"
+       aria-label="Send feedback">
+      <span class="fab-icon" aria-hidden="true">💬</span>
+      <span class="fab-label">Feedback</span>
+    </a>
   `,
   styles: [`
     :host { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); color: var(--text); }
@@ -82,8 +89,19 @@ import { ThemeService } from "../core/theme.service";
     nav a { text-decoration: none; color: var(--text-muted); padding: .35rem .75rem; border-radius: .375rem; }
     nav a:hover { background: var(--ghost-bg); }
     nav a.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
-    nav a.feedback-link { color: var(--accent); border: 1px solid var(--accent-soft); }
-    nav a.feedback-link:hover { background: var(--accent-soft); }
+
+    .fab-feedback {
+      position: fixed; bottom: 1.75rem; right: 1.75rem; z-index: 200;
+      display: flex; align-items: center; gap: .5rem;
+      background: var(--accent); color: #fff;
+      padding: .65rem 1.1rem; border-radius: 999px;
+      text-decoration: none; font-weight: 600; font-size: .875rem;
+      box-shadow: 0 4px 18px rgba(0,158,109,.35);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .fab-feedback:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,158,109,.45); }
+    .fab-icon { font-size: 1rem; line-height: 1; }
+    @media (max-width: 480px) { .fab-label { display: none; } .fab-feedback { padding: .7rem; } }
     .user { display: flex; align-items: center; gap: .75rem; color: var(--text-muted); font-size: .9rem; }
     .user button { background: transparent; border: 1px solid var(--card-bd); padding: .35rem .75rem; border-radius: .375rem; cursor: pointer; color: var(--text); }
     .user button:hover { background: var(--ghost-bg); }
