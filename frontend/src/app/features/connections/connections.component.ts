@@ -122,6 +122,10 @@ function isoDaysAgo(days: number): string {
 
           <p class="modal-lede">{{ modalLede() }}</p>
 
+          <a class="guide-link" href="/guide" target="_blank" rel="noopener">
+            📖 Setup Guide — step-by-step instructions for creating the app ↗
+          </a>
+
           <form [formGroup]="form" (ngSubmit)="submitModal()">
             @if (mp === 'shopify') {
               <div class="field">
@@ -293,6 +297,13 @@ function isoDaysAgo(days: number): string {
     .help a { color: #4f46e5; }
     .alert { padding: .65rem .85rem; border-radius: .5rem; font-size: .85rem; margin-bottom: .75rem; }
     .alert--error { background: #fef2f2; color: #b91c1c; }
+    .guide-link {
+      display: block; margin-bottom: 1rem; padding: .55rem .85rem;
+      background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: .5rem;
+      color: #15803d; font-size: .82rem; font-weight: 500; text-decoration: none;
+      transition: background .15s;
+    }
+    .guide-link:hover { background: #dcfce7; }
     .modal-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .5rem; }
   `],
 })

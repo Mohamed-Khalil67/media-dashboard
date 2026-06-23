@@ -50,5 +50,9 @@ export const routes: Routes = [
       },
     ],
   },
+  {
+    path: "guide",
+    loadComponent: () => import("./features/guide/guide.component").then((m) => m.GuideComponent),
+  },
   { path: "**", redirectTo: "" },
 ];
