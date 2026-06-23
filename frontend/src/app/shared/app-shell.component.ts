@@ -15,6 +15,7 @@ import { ThemeService } from "../core/theme.service";
       <nav>
         <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">Dashboard</a>
         <a routerLink="/connections" routerLinkActive="active">Connections</a>
+        <a class="feedback-link" href="https://docs.google.com/forms/d/e/1FAIpQLScPwD2rY6vZ7549D9Aw0JC-OooPdzE_JpZrpicPMuOZzCTEAA/viewform" target="_blank" rel="noopener">Feedback</a>
       </nav>
       <div class="user">
         <button type="button" class="theme" (click)="theme.toggle()"
@@ -81,6 +82,8 @@ import { ThemeService } from "../core/theme.service";
     nav a { text-decoration: none; color: var(--text-muted); padding: .35rem .75rem; border-radius: .375rem; }
     nav a:hover { background: var(--ghost-bg); }
     nav a.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+    nav a.feedback-link { color: var(--accent); border: 1px solid var(--accent-soft); }
+    nav a.feedback-link:hover { background: var(--accent-soft); }
     .user { display: flex; align-items: center; gap: .75rem; color: var(--text-muted); font-size: .9rem; }
     .user button { background: transparent; border: 1px solid var(--card-bd); padding: .35rem .75rem; border-radius: .375rem; cursor: pointer; color: var(--text); }
     .user button:hover { background: var(--ghost-bg); }
