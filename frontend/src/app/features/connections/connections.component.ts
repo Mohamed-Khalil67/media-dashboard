@@ -16,9 +16,12 @@ interface PlatformInfo {
   credentialsHelpUrl: string;
 }
 
-/** The backend origin (e.g. http://localhost:3000), derived from apiUrl. */
+/** The backend origin (e.g. http://localhost:3000), derived from apiUrl.
+ *  In production apiUrl is '/api' (relative) so we fall back to window.location.origin
+ *  which is correct because frontend and backend share the same domain on Railway. */
 function backendOrigin(): string {
-  return environment.apiUrl.replace(/\/api\/?$/, "");
+  const url = environment.apiUrl;
+  return url.startsWith("http") ? url.replace(/\/api\/?$/, "") : window.location.origin;
 }
 
 function isoDaysAgo(days: number): string {
