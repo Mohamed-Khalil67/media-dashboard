@@ -47,6 +47,10 @@ router.post("/connect-start", requireAuth, async (req: Request, res: Response) =
     ? redirectUri
     : `${frontendUrl().replace(/\/$/, "")}/api/facebook/callback`;
 
+  // Clean up any leftover pending connections for this user+platform before
+  // creating a new one — prevents accumulation when OAuth is abandoned mid-flow.
+  await prisma.connection.deleteMany({ where: { userId, platform: "facebook", status: "pending" } });
+
   // Persist as a pending connection. We use a synthetic accountId until the
   // callback comes back with real ad-account ids; the (userId, platform,
   // accountId) unique constraint requires a non-null value.

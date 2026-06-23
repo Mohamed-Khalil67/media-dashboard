@@ -70,11 +70,11 @@ function isoDaysAgo(days: number): string {
       }
     </section>
 
-    @if (connections().length > 0) {
+    @if (activeConnections().length > 0) {
       <section class="connections-list">
         <h2>Your accounts</h2>
         <div class="conn-rows">
-          @for (c of connections(); track c.id) {
+          @for (c of activeConnections(); track c.id) {
             <div class="conn-row" [class.row-failed]="c.lastSyncOk === false">
               <div class="conn-left">
                 <div class="avatar" [style.--brand]="brandFor(c.platform)">{{ initials(c) }}</div>
@@ -336,8 +336,12 @@ export class ConnectionsComponent implements OnInit {
     this.reload();
   }
 
+  readonly activeConnections = computed(() =>
+    this.connections().filter((c) => c.status !== "pending")
+  );
+
   countFor(p: Platform): number {
-    return this.connections().filter((c) => c.platform === p).length;
+    return this.activeConnections().filter((c) => c.platform === p).length;
   }
 
   brandFor(p: Platform): string {
