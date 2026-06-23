@@ -41,3 +41,17 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   logger.error({ err, path: req.path, method: req.method }, "unhandled request error");
   res.status(500).json({ error: "Internal server error" });
 });
+
+// Serve the Angular SPA in production. The build step copies
+// frontend/dist/frontend/browser → backend/public before starting.
+// Guard lets the dev server (no public/ dir) skip this block entirely.
+import path from "path";
+import { existsSync } from "fs";
+const publicDir = path.join(__dirname, "..", "public");
+if (existsSync(publicDir)) {
+  app.use(express.static(publicDir));
+  // SPA fallback: all non-/api paths return index.html so Angular handles routing.
+  app.get(/^(?!\/api).*/, (_req, res) => {
+    res.sendFile(path.join(publicDir, "index.html"));
+  });
+}
