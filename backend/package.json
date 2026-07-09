@@ -11,11 +11,7 @@
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "allow:add": "ts-node-dev --transpile-only scripts/allowEmail.ts add",
-    "allow:remove": "ts-node-dev --transpile-only scripts/allowEmail.ts remove",
-    "allow:list": "ts-node-dev --transpile-only scripts/allowEmail.ts list",
-    "set-password": "ts-node-dev --transpile-only scripts/setPassword.ts"
+    "test:watch": "vitest"
   },
   "keywords": [],
   "author": "",

@@ -4,18 +4,19 @@ This is the playbook for confirming the full media-buying dashboard works end-to
 
 Before you start: confirm credentials are pasted per [`CREDENTIALS.md`](./CREDENTIALS.md).
 
+> **Accuracy note:** Modules 1 and 5 below have been corrected to match the current app (Firebase Auth; TikTok removed). Modules 3/4/6+ were written against an earlier request shape and have **not** been re-verified line-by-line — cross-check exact request bodies against the real routes (`backend/src/modules/facebook/facebook.routes.ts`, `shopify.routes.ts`) or `CREDENTIALS.md` before relying on copy-pasted commands, particularly around `/connect` vs `/connect-start` and the per-connection (not env-var) credential model.
+
 ---
 
 ## Table of contents
 
 1. [Pre-test setup](#1-pre-test-setup)
 2. [Module 0 — Database schema](#module-0--database-schema)
-3. [Module 1 — Auth (register / login / me)](#module-1--auth)
+3. [Module 1 — Auth (Firebase sign-in + /me)](#module-1--auth)
 4. [Module 2 — Token encryption](#module-2--token-encryption)
 5. [Module 3 — Facebook OAuth](#module-3--facebook-oauth)
 6. [Module 4 — Shopify OAuth](#module-4--shopify-oauth)
-7. [Module 5 — TikTok OAuth](#module-5--tiktok-oauth)
-8. [Module 6 — Sync engine (cron + manual)](#module-6--sync-engine)
+7. [Module 6 — Sync engine (cron + manual)](#module-6--sync-engine)
 9. [Module 7 — Metrics endpoints](#module-7--metrics-endpoints)
 10. [Module 8 — Alerts engine](#module-8--alerts-engine)
 11. [Module 9 — Frontend journey (browser)](#module-9--frontend-journey)
@@ -42,7 +43,7 @@ Terminal **A** — backend:
 cd backend
 npm run dev
 # Expect: "API listening on http://localhost:3000"
-#         "[sync] cron scheduled: */30 * * * *"
+#         "sync cron scheduled" (schedule "*/2 * * * *" by default — see backend/.env.example)
 ```
 
 Terminal **B** — frontend:
@@ -89,28 +90,19 @@ npx prisma studio
 
 ## Module 1 — Auth
 
-**What this checks:** register, login, /me, password hashing, JWT issuance, duplicate-email rejection.
+**What this checks:** Firebase sign-in produces a working session, `/me` resolves the local user row, `/logout` wipes synced data, unauthenticated requests are rejected.
 
-### Register
+There is no backend `/register` or `/login` route — sign-in happens client-side via the Firebase SDK. The backend only verifies the resulting ID token (`backend/src/middleware/auth.ts`) and auto-provisions a local `User` row on first sight of a new Firebase UID (`backend/src/modules/auth/auth.routes.ts`).
+
+### Sign in via the browser, then grab a token for API testing
+
+1. Open `http://localhost:4200`, register/sign in through the UI (this creates the Firebase user)
+2. In the browser console, run `await firebase.auth().currentUser.getIdToken()` (or read it from the Network tab's `Authorization` header on any API call) and copy it
 
 ```powershell
-$body = @{ email = "you@example.com"; password = "supersecret123"; name = "You" } | ConvertTo-Json
-$reg = Invoke-RestMethod -Uri "$api/auth/register" -Method Post -ContentType 'application/json' -Body $body
-$token = $reg.token
+$token = "<paste the Firebase ID token here>"
 $auth = @{ Authorization = "Bearer $token" }
-$reg.user
 ```
-
-✅ `user.plan` = `"trial"`, JWT non-empty, `token.length ≈ 200`.
-
-### Login
-
-```powershell
-$body = @{ email = "you@example.com"; password = "supersecret123" } | ConvertTo-Json
-Invoke-RestMethod -Uri "$api/auth/login" -Method Post -ContentType 'application/json' -Body $body
-```
-
-✅ Returns `{ token, user }`.
 
 ### /me
 
@@ -118,20 +110,22 @@ Invoke-RestMethod -Uri "$api/auth/login" -Method Post -ContentType 'application/
 Invoke-RestMethod -Uri "$api/auth/me" -Headers $auth
 ```
 
-✅ Returns the same user.
+✅ Returns `{ user: { id, email, name, createdAt } }` — the local `User` row linked to your Firebase UID.
 
-### Duplicate / bad password / no-token
+### No-token rejection
 
 ```powershell
-try { Invoke-RestMethod -Uri "$api/auth/register" -Method Post -ContentType 'application/json' -Body $body }
-catch { "$($_.Exception.Response.StatusCode.value__) → expected 409" }
-
-try { Invoke-RestMethod -Uri "$api/auth/login" -Method Post -ContentType 'application/json' -Body (@{ email='you@example.com'; password='wrong' } | ConvertTo-Json) }
-catch { "$($_.Exception.Response.StatusCode.value__) → expected 401" }
-
 try { Invoke-RestMethod -Uri "$api/auth/me" }
 catch { "$($_.Exception.Response.StatusCode.value__) → expected 401" }
 ```
+
+### /logout — ephemeral data wipe
+
+```powershell
+Invoke-RestMethod -Uri "$api/auth/logout" -Method Post -Headers $auth
+```
+
+✅ Returns `{ ok: true }`. All `Connection` rows (and everything cascading from them — campaigns, insights, sync runs, Shopify orders) plus `AlertRule` rows for this user are deleted in one transaction; the `User` row itself survives so you can sign back in to a clean dashboard.
 
 ---
 
@@ -241,33 +235,6 @@ Invoke-RestMethod -Uri "$api/sync/run" -Method Post -Headers $auth
 & 'C:\Program Files\PostgreSQL\18\bin\psql.exe' -h localhost -U postgres -d media_dashboard `
   -c 'SELECT COUNT(*) FROM "ShopifyOrder";'
 ```
-
----
-
-## Module 5 — TikTok OAuth
-
-**Prerequisites:** `TIKTOK_APP_ID`, `TIKTOK_APP_SECRET` set; redirect URI registered in TikTok dashboard; access to at least one advertiser account.
-
-### Get the auth URL
-
-```powershell
-$res = Invoke-RestMethod -Uri "$api/tiktok/connect" -Headers $auth
-$res.url
-```
-
-✅ URL is `https://business-api.tiktok.com/portal/auth?...app_id=...`.
-
-### Complete the flow
-
-Visit `$res.url` → authorize → redirected to `/connections?tiktok=connected&count=N`.
-
-### Sync
-
-```powershell
-Invoke-RestMethod -Uri "$api/sync/run" -Method Post -Headers $auth
-```
-
-✅ One row per advertiser, status `"active"`.
 
 ---
 
@@ -529,17 +496,16 @@ npm run test:watch
 The 10-minute happy-path script. Run this after credentials are pasted.
 
 1. ✅ Boot backend + frontend
-2. ✅ Open http://localhost:4200/register → create account "demo@yours.com"
+2. ✅ Open http://localhost:4200/register → create account "demo@yours.com" via Firebase sign-in
 3. ✅ Land on `/connections`
-4. ✅ Click **Connect Facebook** → OAuth → return to `/connections?facebook=connected`
-5. ✅ Enter shop domain → **Connect** → install on dev store → return to `/connections?shopify=connected`
-6. ✅ Click **Connect TikTok** → OAuth → return to `/connections?tiktok=connected`
-7. ✅ Navigate to `/dashboard` → empty state (no sync yet)
-8. ✅ Click **Sync now** → wait ~10s → toast "Sync complete" → KPIs populated
-9. ✅ Spend, Revenue, ROAS cards show non-zero values
-10. ✅ Spend vs Revenue chart renders
-11. ✅ Campaign table lists rows from at least one platform
-12. ✅ Navigate to `/alerts` → see 3 default rules
+4. ✅ Click **Connect Facebook** → paste your own App ID/Secret → OAuth → return to `/connections?facebook=connected`
+5. ✅ Enter shop domain + your own API key/secret → **Connect** → install on dev store → return to `/connections?shopify=connected`
+6. ✅ Navigate to `/dashboard` → empty state (no sync yet)
+7. ✅ Click **Sync now** → wait ~10s → status pill "Synced N campaigns" → KPIs populated
+8. ✅ Spend, Revenue, ROAS cards show non-zero values
+9. ✅ Spend vs Revenue chart renders
+10. ✅ Campaign table lists rows from at least one platform
+11. ✅ Navigate to `/alerts` → see 3 default rules
 13. ✅ Lower the ROAS threshold to 5 → return to `/dashboard` → at least one alert should now appear in the panel
 14. ✅ Log out → land on `/login`
 15. ✅ Log back in → state restored from DB (campaigns/insights persist; only your JWT is recreated)
