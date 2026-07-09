@@ -16,7 +16,8 @@ backend/public/
 
 # Firebase service account key (if downloaded locally)
 *.serviceAccount.json
-firebase-adminsdk*.json
+*firebase-adminsdk*.json
+*-firebase-adminsdk-*.json
 
 # Logs
 *.log
