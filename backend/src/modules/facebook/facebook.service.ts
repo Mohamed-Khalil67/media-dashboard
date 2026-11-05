@@ -1,9 +1,6 @@
-import axios from "axios";
 import type { Connection } from "@prisma/client";
 import { decrypt } from "../../utils/encryption";
-
-const GRAPH_VERSION = process.env.FB_GRAPH_VERSION ?? "v21.0";
-const GRAPH_BASE = `https://graph.facebook.com/${GRAPH_VERSION}`;
+import { graph, GRAPH_BASE } from "./graph";
 
 export interface FacebookInsight {
   date_start?: string;
@@ -35,10 +32,10 @@ export interface AppCredentials {
  * user-supplied developer-app credentials (stored on their Connection row).
  */
 export async function exchangeCodeForToken(code: string, creds: AppCredentials): Promise<string> {
-  const short = await axios.get(`${GRAPH_BASE}/oauth/access_token`, {
+  const short = await graph.get(`${GRAPH_BASE}/oauth/access_token`, {
     params: { client_id: creds.appId, client_secret: creds.appSecret, redirect_uri: creds.redirectUri, code },
   });
-  const long = await axios.get(`${GRAPH_BASE}/oauth/access_token`, {
+  const long = await graph.get(`${GRAPH_BASE}/oauth/access_token`, {
     params: {
       grant_type: "fb_exchange_token",
       client_id: creds.appId,
@@ -50,7 +47,7 @@ export async function exchangeCodeForToken(code: string, creds: AppCredentials):
 }
 
 export async function listAdAccounts(accessToken: string): Promise<Array<{ id: string; name: string }>> {
-  const res = await axios.get(`${GRAPH_BASE}/me/adaccounts`, {
+  const res = await graph.get(`${GRAPH_BASE}/me/adaccounts`, {
     params: { access_token: accessToken, fields: "id,name" },
   });
   return res.data.data ?? [];
@@ -66,7 +63,7 @@ export async function fetchCampaigns(connection: Connection): Promise<FacebookCa
   const campaigns: FacebookCampaign[] = [];
 
   // First page — explicit params
-  const first = await axios.get<CampaignPage>(`${GRAPH_BASE}/${connection.accountId}/campaigns`, {
+  const first = await graph.get<CampaignPage>(`${GRAPH_BASE}/${connection.accountId}/campaigns`, {
     params: {
       access_token: token,
       fields: `id,name,status,created_time,${insightFields}`,
@@ -78,7 +75,7 @@ export async function fetchCampaigns(connection: Connection): Promise<FacebookCa
   // Follow cursor pagination — subsequent page URLs already include all params
   let nextUrl: string | null = first.data.paging?.next ?? null;
   while (nextUrl) {
-    const page = await axios.get<CampaignPage>(nextUrl);
+    const page = await graph.get<CampaignPage>(nextUrl);
     campaigns.push(...(page.data.data ?? []));
     nextUrl = page.data.paging?.next ?? null;
   }
@@ -137,14 +134,14 @@ export function extractPurchases(insight: FacebookInsight | undefined): number {
 
 export async function setCampaignStatus(connection: Connection, externalCampaignId: string, status: "PAUSED" | "ACTIVE"): Promise<void> {
   const token = decrypt(connection.accessToken);
-  await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, {
+  await graph.post(`${GRAPH_BASE}/${externalCampaignId}`, null, {
     params: { access_token: token, status },
   });
 }
 
 export async function renameCampaign(connection: Connection, externalCampaignId: string, name: string): Promise<void> {
   const token = decrypt(connection.accessToken);
-  await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, {
+  await graph.post(`${GRAPH_BASE}/${externalCampaignId}`, null, {
     params: { access_token: token, name },
   });
 }
@@ -162,7 +159,7 @@ export async function updateCampaignBudget(
   if (typeof budget.lifetimeBudget === "number") {
     params.lifetime_budget = Math.round(budget.lifetimeBudget * 100);
   }
-  await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, { params });
+  await graph.post(`${GRAPH_BASE}/${externalCampaignId}`, null, { params });
 }
 
 export async function updateCampaignSchedule(
@@ -174,7 +171,7 @@ export async function updateCampaignSchedule(
   const params: Record<string, string> = { access_token: token };
   if (schedule.startTime) params.start_time = schedule.startTime;
   if (schedule.endTime) params.stop_time = schedule.endTime;
-  await axios.post(`${GRAPH_BASE}/${externalCampaignId}`, null, { params });
+  await graph.post(`${GRAPH_BASE}/${externalCampaignId}`, null, { params });
 }
 
 export async function duplicateCampaign(
@@ -197,7 +194,7 @@ export async function duplicateCampaign(
   };
   if (overrides.name) copyParams.rename_options = JSON.stringify({ rename_suffix: "", rename_prefix: "", rename_strategy: "ONLY_TOP_LEVEL_RENAME" });
 
-  const copyRes = await axios.post<{ copied_campaign_id?: string; id?: string }>(
+  const copyRes = await graph.post<{ copied_campaign_id?: string; id?: string }>(
     `${GRAPH_BASE}/${sourceExternalCampaignId}/copies`,
     null,
     { params: copyParams },
@@ -215,7 +212,7 @@ export async function duplicateCampaign(
   if (overrides.endTime) patchParams.stop_time = overrides.endTime;
 
   if (Object.keys(patchParams).length > 1) {
-    await axios.post(`${GRAPH_BASE}/${newCampaignId}`, null, { params: patchParams });
+    await graph.post(`${GRAPH_BASE}/${newCampaignId}`, null, { params: patchParams });
   }
 
   return { newCampaignId };
