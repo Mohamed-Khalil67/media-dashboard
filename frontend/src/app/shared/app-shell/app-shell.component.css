@@ -1,0 +1,58 @@
+:host { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); color: var(--text); }
+    .shell-header {
+      display: flex; align-items: center; gap: 1.25rem;
+      padding: .75rem 1.5rem;
+      background: var(--card-bg);
+      border-bottom: 1px solid var(--card-bd);
+    }
+    .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; font-size: 1rem; color: var(--text); font-family: var(--font-display, "Space Grotesk", system-ui, sans-serif); letter-spacing: -.01em; }
+    .signal-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      background: var(--accent);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 50%, transparent);
+      animation: signal-pulse 2.5s ease-in-out infinite;
+    }
+    @keyframes signal-pulse {
+      0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+      60%  { box-shadow: 0 0 0 5px transparent; }
+      100% { box-shadow: 0 0 0 0 transparent; }
+    }
+    .brand-name { line-height: 1; }
+    nav { display: flex; gap: 1rem; flex: 1; }
+    nav a { text-decoration: none; color: var(--text-muted); padding: .35rem .75rem; border-radius: .375rem; }
+    nav a:hover { background: var(--ghost-bg); }
+    nav a.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+
+    .fab-feedback {
+      position: fixed; bottom: 1.75rem; right: 1.75rem; z-index: 200;
+      display: flex; align-items: center; gap: .5rem;
+      background: var(--accent); color: #fff;
+      padding: .65rem 1.1rem; border-radius: 999px;
+      text-decoration: none; font-weight: 600; font-size: .875rem;
+      box-shadow: 0 4px 18px rgba(0,158,109,.35);
+      transition: transform .15s, box-shadow .15s;
+    }
+    .fab-feedback:hover { transform: translateY(-2px); box-shadow: 0 6px 24px rgba(0,158,109,.45); }
+    .fab-icon { font-size: 1rem; line-height: 1; }
+    @media (max-width: 480px) { .fab-label { display: none; } .fab-feedback { padding: .7rem; } }
+    .user { display: flex; align-items: center; gap: .75rem; color: var(--text-muted); font-size: .9rem; }
+    .user button { background: transparent; border: 1px solid var(--card-bd); padding: .35rem .75rem; border-radius: .375rem; cursor: pointer; color: var(--text); }
+    .user button:hover { background: var(--ghost-bg); }
+    .theme { font-size: 1rem; padding: .35rem .65rem !important; }
+    .shell-main { flex: 1; padding: 1.5rem; max-width: 1280px; margin: 0 auto; width: 100%; }
+
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, .65); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+    .modal { background: var(--card-bg); border: 1px solid var(--card-bd); border-top: 3px solid var(--danger); border-radius: .75rem; padding: 1.75rem; max-width: 30rem; width: 100%; box-shadow: 0 24px 64px rgba(0, 0, 0, .35); }
+    .modal-icon { width: 2.5rem; height: 2.5rem; border-radius: 50%; background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); display: flex; align-items: center; justify-content: center; font-size: 1.3rem; margin-bottom: .85rem; }
+    .modal h2 { margin: 0 0 .65rem; color: var(--text); font-size: 1.2rem; font-weight: 600; }
+    .modal p { color: var(--text-muted); line-height: 1.55; margin: 0 0 1rem; font-size: .9rem; }
+    .wipe-list { list-style: none; padding: 0; margin: 0 0 1.25rem; font-size: .82rem; color: var(--text-muted); }
+    .wipe-list li { padding: .3rem 0 .3rem 1.25rem; position: relative; }
+    .wipe-list li::before { content: "×"; position: absolute; left: 0; color: var(--danger); font-weight: 700; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: .5rem; }
+    .btn-ghost, .btn-danger { padding: .5rem 1rem; border-radius: .375rem; font-weight: 500; cursor: pointer; border: 1px solid; font-size: .875rem; }
+    .btn-ghost { background: transparent; color: var(--text); border-color: var(--card-bd); }
+    .btn-ghost:hover:not(:disabled) { background: var(--ghost-bg); }
+    .btn-danger { background: var(--danger); color: #fff; border-color: transparent; }
+    .btn-danger:hover:not(:disabled) { opacity: .9; }
+    .btn-ghost:disabled, .btn-danger:disabled { opacity: .55; cursor: not-allowed; }

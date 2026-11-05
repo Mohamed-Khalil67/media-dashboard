@@ -1,0 +1,78 @@
+<header class="page-head">
+      <h1>Alert rules</h1>
+      <p class="muted">Get flagged when a campaign drifts off plan. Rules evaluate against the last 7 days.</p>
+    </header>
+
+    <section class="card">
+      <h3>Add a rule</h3>
+      <form (ngSubmit)="add()" class="row">
+        <label>
+          <span>When</span>
+          <select [(ngModel)]="draft.metric" name="metric">
+            <option value="roas">ROAS</option>
+            <option value="frequency">Frequency</option>
+            <option value="ctr">CTR</option>
+          </select>
+        </label>
+        <label>
+          <span>is</span>
+          <select [(ngModel)]="draft.operator" name="op">
+            <option value="lt">below</option>
+            <option value="gt">above</option>
+          </select>
+        </label>
+        <label>
+          <span>{{ draft.metric === "ctr" ? "(decimal, e.g. 0.005)" : "value" }}</span>
+          <input type="number" step="0.01" [(ngModel)]="draft.threshold" name="threshold" required />
+        </label>
+        <button type="submit" [disabled]="busy()">Add rule</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h3>Your rules</h3>
+      @if (loadError()) {
+        <div class="form-pill form-pill--error" role="alert">
+          <span class="dot"></span><span>{{ loadError() }}</span>
+          <button class="pill-retry" (click)="reload()">Retry</button>
+        </div>
+      }
+      @if (rules().length === 0 && !loadError()) {
+        <p class="muted">No rules yet. Add one above.</p>
+      } @else if (rules().length > 0) {
+        <table>
+          <thead>
+            <tr><th scope="col">Metric</th><th scope="col">Operator</th><th scope="col">Threshold</th><th scope="col">Enabled</th><th scope="col"><span class="sr-only">Actions</span></th></tr>
+          </thead>
+          <tbody>
+            @for (r of rules(); track r.id) {
+              <tr>
+                <td>{{ r.metric | titlecase }}</td>
+                <td>{{ r.operator === "lt" ? "below" : "above" }}</td>
+                <td>
+                  <input
+                    type="number"
+                    step="0.01"
+                    [value]="r.threshold"
+                    (change)="updateThreshold(r, asNum($event))"
+                  />
+                </td>
+                <td>
+                  <label class="switch">
+                    <input
+                      type="checkbox"
+                      [checked]="r.enabled"
+                      (change)="toggleEnabled(r, asCheck($event))"
+                    />
+                    <span>{{ r.enabled ? "On" : "Off" }}</span>
+                  </label>
+                </td>
+                <td>
+                  <button class="danger" (click)="remove(r)">Delete</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>

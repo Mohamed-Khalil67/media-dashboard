@@ -1,0 +1,39 @@
+<app-dropdown #dateDD>
+      <span trigger>
+        <span class="ico" aria-hidden="true">📅</span>
+        <span class="lbl">{{ label() }}</span>
+      </span>
+      <div menu class="date-menu" role="menu" aria-label="Date range">
+        <div class="presets">
+          @for (p of presets; track p.value) {
+            <button
+              type="button"
+              class="preset"
+              [class.active]="!customMode() && range() === p.value"
+              (click)="pickPreset.emit(p.value); dateDD.close()">{{ p.label }}</button>
+          }
+        </div>
+        <div class="custom-zone">
+          <p class="muted">Custom range</p>
+          <div class="dates">
+            <input type="date"
+              [value]="customSince()"
+              (change)="updateCustomSince.emit(asValue($event))"
+              aria-label="Start date" />
+            <span aria-hidden="true">→</span>
+            <input type="date"
+              [value]="customUntil()"
+              (change)="updateCustomUntil.emit(asValue($event))"
+              aria-label="End date" />
+          </div>
+          @if (rangeInvalid()) {
+            <p class="range-error" role="alert">End date must be on or after start date.</p>
+          }
+          <button
+            type="button"
+            class="apply"
+            [disabled]="rangeInvalid() || !customSince() || !customUntil()"
+            (click)="applyCustom.emit({ since: customSince(), until: customUntil() }); dateDD.close()">Apply</button>
+        </div>
+      </div>
+    </app-dropdown>

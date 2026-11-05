@@ -1,0 +1,15 @@
+.dd { position: relative; display: inline-block; }
+    .dd-trigger {
+      display: flex; align-items: center; gap: .5rem;
+      background: var(--card-bg); border: 1px solid var(--card-bd); color: var(--text);
+      padding: .45rem .85rem; border-radius: .5rem; cursor: pointer; font-size: .85rem;
+      transition: border-color .12s;
+    }
+    .dd-trigger:hover, .dd-trigger.open { border-color: var(--accent); }
+    .caret { color: var(--muted); font-size: .65rem; }
+    .dd-menu {
+      position: absolute; top: calc(100% + .35rem); left: 0; z-index: 50;
+      background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: .5rem;
+      box-shadow: var(--shadow); min-width: 14rem; padding: .35rem; color: var(--text);
+    }
+    .dd-menu.right { left: auto; right: 0; }

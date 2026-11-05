@@ -1,0 +1,56 @@
+<header class="shell-header">
+      <div class="brand">
+        <span class="signal-dot" aria-hidden="true"></span>
+        <span class="brand-name">Media Dashboard</span>
+      </div>
+      <nav>
+        <a routerLink="/dashboard" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: false }">Dashboard</a>
+        <a routerLink="/connections" routerLinkActive="active">Connections</a>
+      </nav>
+      <div class="user">
+        <button type="button" class="theme" (click)="theme.toggle()"
+                [attr.aria-label]="theme.dark() ? 'Switch to light mode' : 'Switch to dark mode'"
+                [title]="theme.dark() ? 'Light mode' : 'Dark mode'">
+          <span aria-hidden="true">{{ theme.dark() ? '☀' : '🌙' }}</span>
+        </button>
+        <span>{{ auth.user()?.email }}</span>
+        <button type="button" (click)="confirmLogout()">Log out</button>
+      </div>
+    </header>
+
+    @if (showLogoutConfirm()) {
+      <div class="modal-backdrop" (click)="showLogoutConfirm.set(false)">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="logout-title" (click)="$event.stopPropagation()">
+          <div class="modal-icon" aria-hidden="true">⚠</div>
+          <h2 id="logout-title">Log out & erase synced data?</h2>
+          <p>
+            We'll <strong>permanently delete every connection</strong> and all the data we've pulled for you
+            from Facebook and Shopify. Your account stays intact — but the next dashboard starts empty until
+            you reconnect.
+          </p>
+          <ul class="wipe-list">
+            <li>Connections & access tokens</li>
+            <li>Campaigns, insights & spend history</li>
+            <li>Shopify orders & alert rules</li>
+          </ul>
+          <div class="modal-actions">
+            <button type="button" class="btn-ghost" (click)="showLogoutConfirm.set(false)" [disabled]="loggingOut()">Cancel</button>
+            <button type="button" class="btn-danger" (click)="doLogout()" [disabled]="loggingOut()">
+              {{ loggingOut() ? "Logging out…" : "Yes, log out and erase data" }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    <main class="shell-main">
+      <router-outlet />
+    </main>
+
+    <a class="fab-feedback"
+       href="https://docs.google.com/forms/d/e/1FAIpQLScPwD2rY6vZ7549D9Aw0JC-OooPdzE_JpZrpicPMuOZzCTEAA/viewform"
+       target="_blank" rel="noopener"
+       aria-label="Send feedback">
+      <span class="fab-icon" aria-hidden="true">💬</span>
+      <span class="fab-label">Feedback</span>
+    </a>

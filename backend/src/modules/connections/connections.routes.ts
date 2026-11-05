@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
-import { prisma } from "../../db/client";
 import { requireAuth, AuthedRequest } from "../../middleware/auth";
+import { connectionsService } from "./connections.service";
 
 const router = Router();
 
@@ -8,49 +8,20 @@ router.use(requireAuth);
 
 router.get("/", async (req: Request, res: Response) => {
   const { userId } = req as AuthedRequest;
-  const connections = await prisma.connection.findMany({
-    where: { userId },
-    select: {
-      id: true,
-      platform: true,
-      accountId: true,
-      accountName: true,
-      status: true,
-      createdAt: true,
-      tokenExpiresAt: true,
-      lastSyncAt: true,
-      lastSyncOk: true,
-      lastSyncError: true,
-      syncSince: true,
-      syncUntil: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  const connections = await connectionsService.listConnections(userId);
   res.json({ connections });
 });
 
 router.get("/:id/syncs", async (req: Request, res: Response) => {
   const { userId } = req as AuthedRequest;
   const id = String(req.params.id);
+  const limit = req.query.limit ? Number(req.query.limit) : 50;
 
-  const connection = await prisma.connection.findFirst({ where: { id, userId } });
-  if (!connection) return res.status(404).json({ error: "Connection not found" });
+  const runs = await connectionsService.getConnectionSyncs(userId, id, limit);
+  if (!runs) {
+    return res.status(404).json({ error: "Connection not found" });
+  }
 
-  const limit = Math.min(Number(req.query.limit ?? 50) || 50, 200);
-  const runs = await prisma.syncRun.findMany({
-    where: { connectionId: id },
-    orderBy: { startedAt: "desc" },
-    take: limit,
-    select: {
-      id: true,
-      startedAt: true,
-      finishedAt: true,
-      ok: true,
-      error: true,
-      campaignCount: true,
-      insightCount: true,
-    },
-  });
   res.json({ runs });
 });
 
@@ -58,10 +29,11 @@ router.delete("/:id", async (req: Request, res: Response) => {
   const { userId } = req as AuthedRequest;
   const id = String(req.params.id);
 
-  const connection = await prisma.connection.findFirst({ where: { id, userId } });
-  if (!connection) return res.status(404).json({ error: "Connection not found" });
+  const deleted = await connectionsService.deleteConnection(userId, id);
+  if (!deleted) {
+    return res.status(404).json({ error: "Connection not found" });
+  }
 
-  await prisma.connection.delete({ where: { id } });
   res.json({ ok: true });
 });
 

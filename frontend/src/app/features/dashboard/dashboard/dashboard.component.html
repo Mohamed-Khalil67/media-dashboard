@@ -1,0 +1,190 @@
+<app-dashboard-tabs />
+
+    <header class="page-head">
+      <div>
+        <h1>{{ platformLabel() }} Dashboard</h1>
+        <div class="status-row">
+          <span class="muted">Welcome back, {{ auth.user()?.name ?? auth.user()?.email }}.</span>
+          <app-refresh-bar [lastUpdated]="lastUpdated()" [refreshing]="refreshing()" [nextRefreshIn]="nextRefreshIn()" (refresh)="reload()" />
+          @if (kpis() && campaigns().length > 0) {
+            <span class="pill pill--info">
+              {{ campaigns().length }} campaigns • {{ activeAccountCount() }} {{ activeAccountCount() === 1 ? 'account' : 'accounts' }}
+            </span>
+          }
+        </div>
+      </div>
+      <div class="actions">
+
+        <!-- Date range dropdown — shared with the Shopify dashboard -->
+        <app-range-selector
+          [range]="range()"
+          [customMode]="customMode()"
+          [customSince]="customSince()"
+          [customUntil]="customUntil()"
+          (pickPreset)="pickPreset($event)"
+          (updateCustomSince)="customSince.set($event)"
+          (updateCustomUntil)="customUntil.set($event)"
+          (applyCustom)="applyCustomFromShared($event)" />
+
+        <!-- Account selector dropdown -->
+        @if (fbConnections().length > 0) {
+          <app-dropdown #acctDD>
+            <span trigger>
+              <span class="ico">🏢</span>
+              <span class="lbl">{{ accountLabel() }}</span>
+            </span>
+            <div menu class="acct-menu">
+              <input
+                class="acct-search"
+                type="search"
+                placeholder="Search accounts…"
+                [value]="acctSearch()"
+                (input)="onAcctSearchInput($event)" />
+              <button
+                class="acct-item"
+                [class.active]="selectedConn() === null"
+                (click)="selectConn(null); acctDD.close()">
+                <span>All accounts</span>
+                <span class="check">{{ selectedConn() === null ? '✓' : '' }}</span>
+              </button>
+              <div class="divider"></div>
+              <div class="acct-list">
+                @for (c of filteredAccounts(); track c.id) {
+                  <button
+                    class="acct-item"
+                    [class.active]="selectedConn() === c.id"
+                    (click)="selectConn(c.id); acctDD.close()">
+                    <span class="acct-name">
+                      {{ c.accountName ?? c.accountId }}
+                      @if (c.status === 'expired') { <span class="exp-dot" title="Expired">●</span> }
+                    </span>
+                    <span class="check">{{ selectedConn() === c.id ? '✓' : '' }}</span>
+                  </button>
+                }
+                @if (filteredAccounts().length === 0) {
+                  <div class="empty-small">No matches</div>
+                }
+              </div>
+            </div>
+          </app-dropdown>
+        }
+
+        <button class="sync" (click)="syncNow()" [disabled]="syncing()">
+          {{ syncing() ? "Syncing…" : "Sync now" }}
+        </button>
+      </div>
+    </header>
+
+    @if (loadError(); as msg) {
+      <div class="health-banner health-banner--err">
+        <strong>{{ msg }}</strong>
+        <a (click)="reload()" style="cursor: pointer">Retry →</a>
+      </div>
+    }
+    @if (isStale()) {
+      <div class="health-banner health-banner--stale">
+        <strong>Data is from {{ lastUpdatedRel() }} — syncing paused.</strong>
+        <span>Fresh data syncs only while your media buyer is active. You can still browse and filter what's already loaded.</span>
+      </div>
+    }
+    @if (expiredConnections().length > 0) {
+      <div class="health-banner">
+        <strong>{{ expiredConnections().length }} account{{ expiredConnections().length > 1 ? 's' : '' }} expired.</strong>
+        Data may be out of date. <a routerLink="/connections">Reconnect →</a>
+      </div>
+    }
+    @if (failedConnections().length > 0) {
+      <div class="health-banner health-banner--err">
+        <strong>{{ failedConnections().length }} account{{ failedConnections().length > 1 ? 's' : '' }} failing to sync.</strong>
+        {{ failedConnections()[0].lastSyncError ?? 'Unknown error' }}
+        <a routerLink="/connections">View details →</a>
+      </div>
+    }
+
+    @if (loading()) {
+      <div class="kpi-grid">
+        @for (i of [1,2,3,4,5,6]; track i) {<div class="skeleton skeleton-card"></div>}
+      </div>
+    } @else if (!kpis() && fbConnections().length === 0) {
+      <section class="empty">
+        <div class="empty-art" aria-hidden="true">📡</div>
+        <h2>Let's pull in your first numbers</h2>
+        <p>Connect a Facebook ad account with your own app credentials and we'll start syncing spend, ROAS and orders every couple of minutes — automatically.</p>
+        <div class="empty-actions">
+          <a routerLink="/connections" class="cta-primary">Connect Facebook Ads →</a>
+          <a routerLink="/connections" class="cta-ghost">or connect Shopify</a>
+        </div>
+        <p class="empty-hint">You'll need your own Facebook App ID + App Secret. We'll walk you through it.</p>
+      </section>
+    } @else if (!kpis() && fbConnections().length > 0) {
+      <section class="empty">
+        <div class="empty-art" aria-hidden="true">⏳</div>
+        <h2>Syncing your first data…</h2>
+        <p>Your account is connected. We're pulling in campaigns and insights — this usually takes under a minute.</p>
+        <p class="empty-hint">The dashboard updates automatically. You can also hit <strong>Sync now</strong> above to trigger it immediately.</p>
+      </section>
+    } @else {
+      <section class="kpi-grid">
+        <app-kpi-card label="Spend"   [value]="kpis()!.spend"     prefix="E£" [delta]="kpis()!.delta.spend"   [previous]="kpis()!.previous.spend"   [trend]="spendTrend()" />
+        <app-kpi-card label="Revenue" [value]="kpis()!.revenue"   prefix="E£" [delta]="kpis()!.delta.revenue" [previous]="kpis()!.previous.revenue" [trend]="revenueTrend()" />
+        <app-kpi-card label="ROAS"    [value]="kpis()!.roas"      suffix="x" format="1.2-2" [delta]="kpis()!.delta.roas" [previous]="kpis()!.previous.roas" [trend]="roasTrend()" />
+        <app-kpi-card label="Orders"  [value]="kpis()!.orders"               [delta]="kpis()!.delta.orders" [previous]="kpis()!.previous.orders" />
+        <app-kpi-card label="AOV"     [value]="kpis()!.aov"       prefix="E£" format="1.2-2" [subtext]="aovSubtext()" />
+        <app-kpi-card label="CTR"     [value]="kpis()!.ctr * 100" suffix="%" format="1.2-2" [subtext]="ctrSubtext()" />
+      </section>
+
+      <section class="insights-row">
+        <article class="card pacing">
+          <h3>Pacing & health</h3>
+          <div class="stat-grid">
+            <div class="stat">
+              <span class="stat-label">Daily spend</span>
+              <span class="stat-value">{{ pacing().dailyAvg | currency: "EGP":"symbol":"1.0-0" }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">{{ pacing().days }}-day projected</span>
+              <span class="stat-value">{{ pacing().projected | currency: "EGP":"symbol":"1.0-0" }}</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Active campaigns</span>
+              <span class="stat-value">{{ campaignStats().active }}<small> / {{ campaignStats().total }}</small></span>
+              <span class="stat-sub muted">{{ campaignStats().pct }}% live</span>
+            </div>
+            <div class="stat">
+              <span class="stat-label">Delivery stalled</span>
+              <span class="stat-value" [class.warn]="campaignStats().stalled > 0">{{ campaignStats().stalled }}</span>
+              <span class="stat-sub muted">{{ campaignStats().stalled === 0 ? "All running" : "needs attention" }}</span>
+            </div>
+          </div>
+        </article>
+        <article class="card top">
+          <h3>Top performers <small class="muted">by ROAS</small></h3>
+          @if (topPerformers().length === 0) {
+            <p class="muted">No campaigns with spend yet.</p>
+          } @else {
+            <ol>
+              @for (c of topPerformers(); track c.campaignId) {
+                <li>
+                  <span class="rank">{{ $index + 1 }}</span>
+                  <span class="t-name" [title]="c.name">{{ c.name }}</span>
+                  <span class="t-spend muted">{{ c.spend | currency: "EGP":"symbol":"1.0-0" }}</span>
+                  <span class="t-roas">{{ c.roas | number: "1.2-2" }}x</span>
+                </li>
+              }
+            </ol>
+          }
+        </article>
+      </section>
+
+      <section class="row">
+        <div class="col col--wide">
+          <app-roas-chart [points]="timeseries()" />
+        </div>
+        <div class="col col--stack">
+          <app-funnel [kpis]="kpis()" />
+          <app-alerts-panel [alerts]="alerts()" />
+        </div>
+      </section>
+
+      <section class="full"><app-campaign-table [campaigns]="campaigns()" (changed)="reload()" /></section>
+    }

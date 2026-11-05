@@ -1,0 +1,160 @@
+<app-dashboard-tabs />
+    <app-shopify-subtabs />
+
+    <header class="page-head">
+      <div>
+        <h1>Shopify Dashboard</h1>
+        <p class="muted">Real orders + revenue, separate from ad-attributed numbers.</p>
+      </div>
+      <div class="actions">
+        <app-refresh-bar [lastUpdated]="lastUpdated()" [refreshing]="refreshing()" (refresh)="reload()" />
+
+        <app-range-selector
+          [range]="range()"
+          [customMode]="customMode()"
+          [customSince]="customSince()"
+          [customUntil]="customUntil()"
+          (pickPreset)="pickPreset($event)"
+          (updateCustomSince)="customSince.set($event)"
+          (updateCustomUntil)="customUntil.set($event)"
+          (applyCustom)="applyCustomFromShared($event)" />
+
+        @if (shopifyConns().length > 0) {
+          <app-dropdown #shopDD>
+            <span trigger>
+              <span class="ico">🛒</span>
+              <span class="lbl">{{ shopLabel() }}</span>
+            </span>
+            <div menu class="acct-menu">
+              <button class="acct-item" [class.active]="selectedConn() === null" (click)="selectConn(null); shopDD.close()">
+                <span>All stores</span>
+                <span class="check">{{ selectedConn() === null ? '✓' : '' }}</span>
+              </button>
+              <div class="divider"></div>
+              @for (c of shopifyConns(); track c.id) {
+                <button class="acct-item" [class.active]="selectedConn() === c.id" (click)="selectConn(c.id); shopDD.close()">
+                  <span>{{ c.accountName ?? c.accountId }}</span>
+                  <span class="check">{{ selectedConn() === c.id ? '✓' : '' }}</span>
+                </button>
+              }
+            </div>
+          </app-dropdown>
+        }
+
+        <button class="sync" (click)="syncNow()" [disabled]="syncing()">
+          {{ syncing() ? "Syncing…" : "Sync now" }}
+        </button>
+      </div>
+    </header>
+
+    @if (loading()) {
+      <div class="kpi-grid">
+        @for (i of [1,2,3,4]; track i) {<div class="skeleton-card"></div>}
+      </div>
+    } @else if (shopifyConns().length === 0) {
+      <section class="empty">
+        <h2>No Shopify store connected</h2>
+        <p>Connect a Shopify store to see orders, revenue, and conversion data here.</p>
+        <a routerLink="/connections" class="primary-link">Go to Connections →</a>
+      </section>
+    } @else if (!kpis() || kpis()!.orders === 0) {
+      <section class="empty">
+        <h2>No orders yet in this period</h2>
+        <p>Try a longer date range, or sync to pull the latest orders.</p>
+      </section>
+    } @else {
+      <section class="kpi-grid">
+        <app-kpi-card label="Revenue"          [value]="kpis()!.revenue" prefix="E£" [delta]="kpis()!.delta.revenue" [previous]="kpis()!.previous.revenue" />
+        <app-kpi-card label="Orders"           [value]="kpis()!.orders"               [delta]="kpis()!.delta.orders"  [previous]="kpis()!.previous.orders" />
+        <app-kpi-card label="AOV"              [value]="kpis()!.aov"      prefix="E£" format="1.2-2" [delta]="kpis()!.delta.aov" [previous]="kpis()!.previous.aov" />
+        <app-kpi-card label="Conversion rate"  [value]="kpis()!.conversionRate * 100" suffix="%" format="1.2-2" [subtext]="conversionSubtext()" />
+      </section>
+
+      <section class="insights-row">
+        <article class="card insight-card">
+          <span class="stat-label">Daily revenue (avg)</span>
+          <span class="stat-value">{{ insights().dailyRevenue | currency: "EGP":"symbol":"1.0-0" }}</span>
+        </article>
+        <article class="card insight-card">
+          <span class="stat-label">Daily orders (avg)</span>
+          <span class="stat-value">{{ insights().dailyOrders | number: "1.0-1" }}</span>
+        </article>
+        <article class="card insight-card">
+          <span class="stat-label">Best day</span>
+          @if (insights().bestDate) {
+            <span class="stat-value">{{ insights().bestRevenue | currency: "EGP":"symbol":"1.0-0" }}</span>
+            <span class="stat-sub muted">{{ insights().bestDate }}</span>
+          } @else {
+            <span class="stat-value muted">—</span>
+          }
+        </article>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <h3>Revenue & orders over time</h3>
+          <p class="muted">{{ points().length }} day window</p>
+        </header>
+        @if (points().length === 0) {
+          <div class="empty-small">No data for this period.</div>
+        } @else {
+          <apx-chart
+            [series]="chartOpts().series!"
+            [chart]="chartOpts().chart!"
+            [xaxis]="chartOpts().xaxis!"
+            [yaxis]="chartOpts().yaxis!"
+            [stroke]="chartOpts().stroke!"
+            [colors]="chartOpts().colors!"
+            [tooltip]="chartOpts().tooltip!"
+            [legend]="chartOpts().legend!"
+            [dataLabels]="chartOpts().dataLabels!"
+            [grid]="chartOpts().grid!"
+            [theme]="chartOpts().theme!"
+          />
+        }
+      </section>
+
+      <div class="two-col">
+        <section class="card list-card">
+          <header class="card-head">
+            <h3>Top products</h3>
+            <p class="muted">By revenue</p>
+          </header>
+          @if (topProducts().length === 0) {
+            <div class="empty-small">No products sold in this period.</div>
+          } @else {
+            <ol class="rank-list">
+              @for (p of topProducts(); track p.title; let i = $index) {
+                <li>
+                  <span class="rank">{{ i + 1 }}</span>
+                  <span class="rank-title" [title]="p.sku ?? ''">{{ p.title }}</span>
+                  <span class="rank-meta">{{ p.units }} units</span>
+                  <span class="rank-num"><strong>{{ p.revenue | currency: "EGP":"symbol":"1.0-0" }}</strong></span>
+                </li>
+              }
+            </ol>
+          }
+        </section>
+
+        <section class="card list-card">
+          <header class="card-head">
+            <h3>Top customers</h3>
+            <p class="muted">By spend</p>
+          </header>
+          @if (topCustomers().length === 0) {
+            <div class="empty-small">No customers yet in this period.</div>
+          } @else {
+            <ol class="rank-list">
+              @for (c of topCustomers(); track c.email; let i = $index) {
+                <li>
+                  <span class="rank">{{ i + 1 }}</span>
+                  <span class="rank-title">{{ c.email }}</span>
+                  <span class="rank-meta">{{ c.orders }} {{ c.orders === 1 ? "order" : "orders" }}</span>
+                  <span class="rank-num"><strong>{{ c.revenue | currency: "EGP":"symbol":"1.0-0" }}</strong></span>
+                </li>
+              }
+            </ol>
+          }
+        </section>
+      </div>
+    }

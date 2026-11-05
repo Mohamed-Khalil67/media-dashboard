@@ -1,0 +1,11 @@
+<div class="dd" #root>
+      <button class="dd-trigger" (click)="toggle()" [class.open]="open()">
+        <ng-content select="[trigger]" />
+        <span class="caret">▾</span>
+      </button>
+      @if (open()) {
+        <div class="dd-menu" [class.right]="align() === 'right'" (click)="onMenuClick($event)">
+          <ng-content select="[menu]" />
+        </div>
+      }
+    </div>

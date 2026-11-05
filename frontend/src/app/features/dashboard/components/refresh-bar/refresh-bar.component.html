@@ -1,0 +1,26 @@
+@if (lastUpdated()) {
+      <span class="pill" [class.pill--refreshing]="refreshing()" [title]="lastUpdated()!.toISOString()">
+        @if (refreshing()) {
+          <span class="dot-anim" aria-hidden="true"></span> Refreshing…
+        } @else {
+          <span class="dot dot--ok" aria-hidden="true"></span> Updated {{ relTime() }}
+        }
+      </span>
+    }
+
+    @if (!refreshing() && nextRefreshIn() !== null) {
+      <span class="next-pill" [title]="'Auto-refresh every 90 seconds'">
+        ↻ {{ nextRefreshIn() }}s
+      </span>
+    }
+
+    <button
+      type="button"
+      class="refresh-btn"
+      [disabled]="refreshing()"
+      (click)="refresh.emit()"
+      title="Refresh (R)"
+      aria-label="Refresh dashboard data">
+      <span aria-hidden="true">↻</span>
+      <span class="refresh-label">Refresh</span>
+    </button>

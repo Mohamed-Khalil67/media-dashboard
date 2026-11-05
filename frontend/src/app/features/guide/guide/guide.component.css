@@ -1,0 +1,95 @@
+:host { display: block; font-family: "Space Grotesk", system-ui, sans-serif; }
+
+    .guide-wrap {
+      max-width: 780px; margin: 0 auto; padding: 2rem 1.5rem 4rem;
+      color: #1a1a1a;
+    }
+
+    .guide-header {
+      text-align: center; margin-bottom: 2.5rem; padding-bottom: 2rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .brand {
+      display: inline-flex; align-items: center; gap: .5rem;
+      font-size: .85rem; font-weight: 600; color: #009e6d; margin-bottom: 1rem;
+    }
+    .signal-dot {
+      width: 10px; height: 10px; border-radius: 50%; background: #009e6d;
+      box-shadow: 0 0 0 3px rgba(0,158,109,.2);
+    }
+    h1 { font-size: 2rem; font-weight: 700; margin: 0 0 .5rem; color: #111; }
+    .subtitle { color: #6b7280; margin: 0; }
+
+    .toc {
+      display: flex; gap: 1rem; margin-bottom: 3rem;
+      background: #f9fafb; border-radius: 10px; padding: .75rem 1rem;
+    }
+    .toc a {
+      color: #009e6d; font-weight: 500; text-decoration: none; font-size: .9rem;
+      padding: .3rem .7rem; border-radius: 6px; transition: background .15s;
+    }
+    .toc a:hover { background: rgba(0,158,109,.1); }
+
+    .platform-section {
+      margin-bottom: 3.5rem; padding-top: 1rem;
+    }
+    .platform-section h2 {
+      font-size: 1.4rem; font-weight: 700; margin: 0 0 1.5rem;
+      display: flex; align-items: center; gap: .6rem;
+    }
+    .badge { font-size: 1.2rem; }
+
+    .step {
+      display: flex; gap: 1.25rem; margin-bottom: 1.75rem;
+    }
+    .step-num {
+      flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+      background: #009e6d; color: white; font-weight: 700; font-size: .85rem;
+      display: flex; align-items: center; justify-content: center;
+      margin-top: 2px;
+    }
+    .step-body { flex: 1; }
+    .step-body h3 { margin: 0 0 .6rem; font-size: 1rem; font-weight: 600; }
+    .step-body ol { margin: 0; padding-left: 1.25rem; }
+    .step-body ol li { margin-bottom: .4rem; line-height: 1.6; color: #374151; }
+    .step-body ul { margin: .4rem 0 0 .5rem; padding-left: 1rem; }
+    .step-body ul li { margin-bottom: .3rem; color: #374151; }
+
+    a { color: #009e6d; }
+    code {
+      background: #f3f4f6; padding: .15rem .4rem; border-radius: 4px;
+      font-family: "JetBrains Mono", monospace; font-size: .82rem;
+    }
+    .highlight { color: #009e6d; }
+
+    .callout {
+      margin-top: .75rem; padding: .65rem 1rem; border-radius: 8px;
+      font-size: .875rem; line-height: 1.5;
+    }
+    .callout--warn { background: #fef3c7; color: #92400e; border-left: 3px solid #f59e0b; }
+
+    .credentials-box {
+      background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px;
+      padding: 1.25rem 1.5rem; margin-top: 1rem;
+    }
+    .credentials-box h3 { margin: 0 0 .75rem; font-size: .95rem; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    th { text-align: left; color: #6b7280; font-weight: 500; padding: .4rem .5rem; border-bottom: 1px solid #e5e7eb; }
+    td { padding: .5rem .5rem; border-bottom: 1px solid #f3f4f6; color: #374151; vertical-align: top; }
+    td:first-child { white-space: nowrap; }
+
+    .guide-footer {
+      text-align: center; padding-top: 2rem; border-top: 1px solid #e5e7eb;
+      color: #6b7280;
+    }
+    .close-btn {
+      margin-top: .75rem; padding: .6rem 1.5rem; border-radius: 8px;
+      background: #009e6d; color: white; border: none; cursor: pointer;
+      font-size: .9rem; font-weight: 600;
+    }
+    .close-btn:hover { background: #007a56; }
+
+    @media (max-width: 600px) {
+      .step { flex-direction: column; gap: .75rem; }
+      .step-num { width: 26px; height: 26px; font-size: .75rem; }
+    }

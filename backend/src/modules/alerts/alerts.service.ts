@@ -130,3 +130,36 @@ export async function evaluateAlerts(userId: string, connectionId?: string, plat
     return a.campaignName.localeCompare(b.campaignName);
   });
 }
+
+export async function listAlertRules(userId: string) {
+  return prisma.alertRule.findMany({
+    where: { userId },
+    orderBy: { metric: "asc" },
+  });
+}
+
+export async function createAlertRule(userId: string, data: { metric: Metric; operator: Operator; threshold: number }) {
+  return prisma.alertRule.create({
+    data: { userId, metric: data.metric, operator: data.operator, threshold: data.threshold, enabled: true },
+  });
+}
+
+export async function updateAlertRule(
+  userId: string,
+  id: string,
+  data: { threshold?: number; enabled?: boolean; operator?: Operator }
+) {
+  const existing = await prisma.alertRule.findFirst({ where: { id, userId } });
+  if (!existing) return null;
+  return prisma.alertRule.update({
+    where: { id },
+    data,
+  });
+}
+
+export async function deleteAlertRule(userId: string, id: string): Promise<boolean> {
+  const existing = await prisma.alertRule.findFirst({ where: { id, userId } });
+  if (!existing) return false;
+  await prisma.alertRule.delete({ where: { id } });
+  return true;
+}
