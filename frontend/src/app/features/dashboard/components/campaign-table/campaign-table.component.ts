@@ -96,8 +96,8 @@ export class CampaignTableComponent {
       const y = h - pad - ((v - min) / range) * (h - pad * 2);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(" ");
-    const last = series[series.length - 1];
-    const first = series[0];
+    const last = series.at(-1) ?? 0;
+    const first = series.at(0) ?? 0;
     const color = last >= first ? "#16a34a" : "#dc2626";
     const markup = `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg"><polyline fill="none" stroke="${color}" stroke-width="1.5" points="${points}"/></svg>`;
     return this.sanitizer.bypassSecurityTrustHtml(markup);

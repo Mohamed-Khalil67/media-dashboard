@@ -89,5 +89,5 @@ function parseNextLink(linkHeader: string | undefined): string | null {
   const match = linkHeader.split(",").find((p) => p.includes('rel="next"'));
   if (!match) return null;
   const urlMatch = match.match(/<([^>]+)>/);
-  return urlMatch ? urlMatch[1] : null;
+  return urlMatch?.[1] ?? null;
 }

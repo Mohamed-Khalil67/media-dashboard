@@ -66,13 +66,14 @@ export class ShopifyDashboardComponent implements OnInit, OnDestroy {
 
   readonly insights = computed(() => {
     const pts = this.points();
-    if (pts.length === 0) {
+    const [first] = pts;
+    if (first === undefined) {
       return { dailyRevenue: 0, dailyOrders: 0, bestDate: null as string | null, bestRevenue: 0 };
     }
     const totalRev = pts.reduce((s, p) => s + p.revenue, 0);
     const totalOrd = pts.reduce((s, p) => s + p.orders, 0);
     const days = pts.length;
-    const best = pts.reduce((acc, p) => (p.revenue > acc.revenue ? p : acc), pts[0]);
+    const best = pts.reduce((acc, p) => (p.revenue > acc.revenue ? p : acc), first);
     return {
       dailyRevenue: totalRev / days,
       dailyOrders: totalOrd / days,

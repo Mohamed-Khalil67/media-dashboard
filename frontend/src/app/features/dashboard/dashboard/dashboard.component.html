@@ -96,7 +96,7 @@
     @if (failedConnections().length > 0) {
       <div class="health-banner health-banner--err">
         <strong>{{ failedConnections().length }} account{{ failedConnections().length > 1 ? 's' : '' }} failing to sync.</strong>
-        {{ failedConnections()[0].lastSyncError ?? 'Unknown error' }}
+        {{ failedConnections()[0]?.lastSyncError ?? 'Unknown error' }}
         <a routerLink="/connections">View details →</a>
       </div>
     }
