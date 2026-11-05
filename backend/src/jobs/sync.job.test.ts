@@ -24,6 +24,7 @@ vi.mock("./sync.facebook", () => ({
   describeSyncError: (e: Error) => e.message,
 }));
 vi.mock("./sync.shopify", () => ({ syncShopify: mocks.syncShopify }));
+vi.mock("./sync.facebook.ads", () => ({ maybeSyncFacebookAds: vi.fn().mockResolvedValue(null) }));
 vi.mock("./retention.job", () => ({ runRetentionSweep: vi.fn() }));
 
 import { runAllConnections, syncUserConnections } from "./sync.job";

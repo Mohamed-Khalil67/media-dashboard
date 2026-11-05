@@ -5,6 +5,7 @@ import { logger } from "../lib/logger";
 import { runRetentionSweep } from "./retention.job";
 import { syncFacebook, isAuthError, describeSyncError } from "./sync.facebook";
 import { syncShopify } from "./sync.shopify";
+import { maybeSyncFacebookAds } from "./sync.facebook.ads";
 
 // Default: every 2 minutes — the SaaS pivot promised near-realtime refresh.
 const SCHEDULE = process.env.SYNC_CRON ?? "*/2 * * * *";
@@ -91,6 +92,8 @@ async function syncSingle(conn: Connection): Promise<SyncResult> {
       data: { lastSyncAt: finishedAt, lastSyncOk: true, lastSyncError: null },
     });
     log.info({ details, durationMs: finishedAt.getTime() - run.startedAt.getTime() }, "sync ok");
+    // Ad-level creative data: throttled to every AD_SYNC_INTERVAL_MINUTES, never throws.
+    if (conn.platform === "facebook") await maybeSyncFacebookAds(conn);
     return { connectionId: conn.id, platform: conn.platform, ok: true, details };
   } catch (err) {
     const message = describeSyncError(err);

@@ -1,0 +1,100 @@
+<header class="page-head">
+  <div>
+    <h1>Creatives</h1>
+    <p class="sub">Every ad that delivered in this period, what's working, and what to do next.</p>
+  </div>
+  @if (response()?.lastAdSyncAt; as synced) {
+    <p class="synced">Ad data synced {{ synced.slice(11, 16) }} UTC · refreshes every 30 min</p>
+  }
+</header>
+
+<div class="filters" role="group" aria-label="Filters">
+  <label class="field">
+    <span class="sr-only">Date range</span>
+    <select [value]="selectedRange()" (change)="setParam('range', value($event))">
+      @for (r of ranges; track r) {
+        <option [value]="r">{{ rangeLabels[r] }}</option>
+      }
+    </select>
+  </label>
+  <label class="field">
+    <span class="sr-only">Ad account</span>
+    <select [value]="selectedAccount() ?? ''" (change)="setParam('account', value($event))">
+      <option value="">All accounts</option>
+      @for (a of accounts(); track a.id) {
+        <option [value]="a.id">{{ a.name }}</option>
+      }
+    </select>
+  </label>
+  <label class="field search">
+    <span class="sr-only">Search ads</span>
+    <input type="search" placeholder="Search ads, ad sets or campaigns" [value]="q() ?? ''" (input)="setParam('q', value($event))" />
+  </label>
+</div>
+
+@if (summary(); as s) {
+  <div class="verdicts" role="group" aria-label="Filter by verdict">
+    @for (v of verdictOrder; track v) {
+      <button type="button" class="chip" [class.on]="selectedVerdict() === v" [attr.aria-pressed]="selectedVerdict() === v" (click)="toggleVerdict(v)">
+        <app-verdict-badge [verdict]="v" [count]="s[v]" />
+      </button>
+    }
+    <span class="note">Compared with each account's median for the same objective</span>
+  </div>
+}
+
+@if (creatives.isLoading() && !response()) {
+  <div class="grid" aria-busy="true">
+    @for (i of [1, 2, 3, 4, 5, 6, 7, 8]; track i) {
+      <div class="tile skeleton"></div>
+    }
+  </div>
+} @else if (creatives.error()) {
+  <div class="empty" role="alert">
+    <h2>Couldn't load creatives</h2>
+    <p>The backend didn't return valid data. Check that it's running, then reload the page.</p>
+  </div>
+} @else if (rows().length === 0) {
+  <div class="empty">
+    @if ((response()?.rows?.length ?? 0) === 0) {
+      <h2>No delivering ads yet</h2>
+      <p>Ads appear here once they've had impressions in the selected period. Ad data syncs every 30 minutes for connected accounts.</p>
+    } @else {
+      <h2>No ads match these filters</h2>
+      <p>Clear the verdict or search filter to see all {{ response()?.rows?.length }} ads.</p>
+    }
+  </div>
+} @else {
+  <ul class="grid">
+    @for (r of rows(); track r.adId) {
+      <li>
+        <a class="tile" [routerLink]="['/creatives', r.adId]" [queryParams]="{ range: selectedRange() }">
+          <div class="thumb">
+            @if (r.thumbnailUrl) {
+              <img [src]="r.thumbnailUrl" alt="" loading="lazy" referrerpolicy="no-referrer" />
+            } @else {
+              <span class="thumb-icon" aria-hidden="true">{{ r.format === 'VIDEO' ? '▶' : '▣' }}</span>
+            }
+            <span class="fmt">{{ formatLabels[r.format] }}</span>
+            @if (duration(r.videoLengthSec); as len) {
+              <span class="len">{{ len }}</span>
+            }
+          </div>
+          <div class="body">
+            <p class="name" [title]="r.name">{{ r.name }}</p>
+            <p class="ctx" [title]="r.accountName + ' · ' + r.campaignName">{{ r.accountName }} · {{ objectiveLabels[r.objective] }}</p>
+            <app-verdict-badge [verdict]="r.verdict" />
+            <dl class="metrics">
+              <div><dt>Hook</dt><dd [class]="tone(r, 'hook')">{{ pct(r.hookRate) }}</dd></div>
+              <div><dt>Hold</dt><dd [class]="tone(r, 'hold')">{{ pct(r.holdRate) }}</dd></div>
+              <div><dt>CTR</dt><dd [class]="tone(r, 'click')">{{ pct(r.ctr, 1) }}</dd></div>
+              <div><dt>ROAS</dt><dd [class]="tone(r, 'conversion')">{{ num(r.roas, 1) }}</dd></div>
+            </dl>
+            <p class="why">{{ r.headline }}</p>
+            <p class="spend">{{ money(r.spend, r.currency) }} · {{ compact(r.impressions) }} impressions</p>
+          </div>
+        </a>
+      </li>
+    }
+  </ul>
+}

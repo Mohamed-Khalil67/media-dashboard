@@ -45,6 +45,16 @@ export const routes: Routes = [
           import("./features/dashboard/dashboard/dashboard.component").then((m) => m.DashboardComponent),
       },
       {
+        path: "creatives",
+        loadComponent: () =>
+          import("./features/creatives/creative-library/creative-library.component").then((m) => m.CreativeLibraryComponent),
+      },
+      {
+        path: "creatives/:id",
+        loadComponent: () =>
+          import("./features/creatives/creative-diagnosis/creative-diagnosis.component").then((m) => m.CreativeDiagnosisComponent),
+      },
+      {
         path: "connections",
         loadComponent: () => import("./features/connections/connections/connections.component").then((m) => m.ConnectionsComponent),
       },

@@ -10,8 +10,11 @@ import { logger } from "../../lib/logger";
  * auto-upgraded with an `X-Ad-Api-Version-Warning` header or fail outright, so
  * bump this default before the pinned version's expiry date:
  * https://developers.facebook.com/documentation/ads-commerce/marketing-api/marketing-api-changelog/versions.md
+ *
+ * 2026-11-06: live calls pinned to v25.0 came back with "auto-upgraded to
+ * v27.0 as v25.0 will be deprecated", so the pin follows what Meta serves.
  */
-export const DEFAULT_GRAPH_VERSION = "v25.0";
+export const DEFAULT_GRAPH_VERSION = "v27.0";
 
 const VERSION_PATTERN = /^v\d+\.\d+$/;
 
