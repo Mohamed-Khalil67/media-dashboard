@@ -110,11 +110,14 @@ export function rankingView(r: Ranking): RankingView {
 
 /** "instagram / instagram_reels" → "Instagram Reels". */
 export function placementLabel(raw: string): string {
-  const position = raw.split(" / ").at(-1) ?? raw;
-  return position
-    .split("_")
-    .map((w) => (w.length > 0 ? `${w.charAt(0).toUpperCase()}${w.slice(1)}` : w))
-    .join(" ")
-    .replace(/^Facebook Facebook/, "Facebook")
-    .replace(/^Instagram Instagram/, "Instagram");
+  const parts = raw.split(" / ");
+  const platform = parts[0] ?? raw;
+  const position = parts.at(-1) ?? raw;
+  const words = (s: string): string =>
+    s
+      .split("_")
+      .map((w) => (w.length > 0 ? `${w.charAt(0).toUpperCase()}${w.slice(1)}` : w))
+      .join(" ");
+  // "facebook / feed" → "Facebook Feed"; "facebook / facebook_reels" → "Facebook Reels".
+  return position.startsWith(`${platform}_`) || parts.length === 1 ? words(position) : `${words(platform)} ${words(position)}`;
 }

@@ -11,18 +11,18 @@
 <div class="filters" role="group" aria-label="Filters">
   <label class="field">
     <span class="sr-only">Date range</span>
-    <select [value]="selectedRange()" (change)="setParam('range', value($event))">
+    <select (change)="setParam('range', value($event))">
       @for (r of ranges; track r) {
-        <option [value]="r">{{ rangeLabels[r] }}</option>
+        <option [value]="r" [selected]="r === selectedRange()">{{ rangeLabels[r] }}</option>
       }
     </select>
   </label>
   <label class="field">
     <span class="sr-only">Ad account</span>
-    <select [value]="selectedAccount() ?? ''" (change)="setParam('account', value($event))">
-      <option value="">All accounts</option>
+    <select (change)="setParam('account', value($event))">
+      <option value="" [selected]="selectedAccount() === null">All accounts</option>
       @for (a of accounts(); track a.id) {
-        <option [value]="a.id">{{ a.name }}</option>
+        <option [value]="a.id" [selected]="a.id === selectedAccount()">{{ a.name }}</option>
       }
     </select>
   </label>

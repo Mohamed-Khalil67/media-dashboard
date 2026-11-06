@@ -4,9 +4,9 @@
   <span>{{ d()?.row?.name ?? "Ad" }}</span>
   <label class="range">
     <span class="sr-only">Date range</span>
-    <select [value]="selectedRange()" (change)="setRange(value($event))">
+    <select (change)="setRange(value($event))">
       @for (r of ranges; track r) {
-        <option [value]="r">{{ rangeLabels[r] }}</option>
+        <option [value]="r" [selected]="r === selectedRange()">{{ rangeLabels[r] }}</option>
       }
     </select>
   </label>
