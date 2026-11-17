@@ -47,6 +47,38 @@ describe("recentTrend", () => {
   it("reports no change for a flat series", () => {
     expect(recentTrend(flatDaily(21)).hookChange).toBeCloseTo(0);
   });
+
+  const NO_DELIVERY = { spend: 0, impressions: 0, video3s: 0, linkClicks: 0 };
+
+  it("uses calendar days: a paused last week is not back-filled with older days", () => {
+    const daily = flatDaily(28).map((d, i) => (i >= 21 ? { ...d, ...NO_DELIVERY } : d));
+    expect(recentTrend(daily).hookChange).toBeNull();
+  });
+
+  it("returns no trend when asOf is past the data", () => {
+    expect(recentTrend(flatDaily(21), 7, 14, "2026-11-20").hookChange).toBeNull();
+  });
+
+  it("anchors on asOf when given", () => {
+    // Data ends 2026-11-01; anchoring 3 days later leaves 4 recent active days.
+    const t = recentTrend(flatDaily(21), 7, 14, "2026-11-04");
+    expect(t.hookChange).toBeCloseTo(0);
+  });
+
+  // Recent window = the last 7 entries (indices 14..20); keep only the last `active` of them delivering.
+  it.each([
+    [0, false],
+    [2, false],
+    [3, true],
+  ])("with %i active days in the recent window, computes a trend: %s", (active, computes) => {
+    const daily = flatDaily(21).map((d, i) => (i >= 14 && i < 21 - active ? { ...d, ...NO_DELIVERY } : d));
+    expect(recentTrend(daily).hookChange !== null).toBe(computes);
+  });
+
+  it("skips unparseable dates and handles empty input", () => {
+    expect(recentTrend([]).hookChange).toBeNull();
+    expect(recentTrend([{ date: "not-a-date", spend: 1, impressions: 1, video3s: 1, linkClicks: 1 }]).hookChange).toBeNull();
+  });
 });
 
 describe("daysWithSpend", () => {

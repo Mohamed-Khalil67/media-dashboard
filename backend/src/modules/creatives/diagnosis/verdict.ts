@@ -3,6 +3,7 @@ import { assertNever } from "./copy";
 import { daysWithSpend } from "./signals";
 import type {
   AdInput,
+  BaselineSource,
   Baselines,
   Confidence,
   DerivedMetrics,
@@ -186,15 +187,21 @@ export function primaryFinding(verdict: Verdict, findings: readonly Finding[]): 
   return candidates[0] ?? null;
 }
 
-/** High needs lots of data and only account baselines; medium needs a few thousand impressions. */
+/**
+ * High needs lots of data and only account baselines; medium needs a few thousand impressions.
+ * `consultedSources` are the baselines the stage checks compared against, including
+ * comparisons that produced no finding — a clean pass on a heuristic is still a heuristic.
+ */
 export function decideConfidence(
   impressions: number,
   findings: readonly Finding[],
   scored: ScoredPerformance,
   baselines: Baselines,
   thresholds: Thresholds,
+  consultedSources: Iterable<BaselineSource> = [],
 ): Confidence {
   const usedSources = findings.flatMap((f) => ("comparison" in f ? [f.comparison.baselineSource] : []));
+  usedSources.push(...consultedSources);
   const perfMetric = scored.performance.metric;
   if (scored.performance.referenceSource === "baseline" && perfMetric !== null) {
     const source = baselines[perfMetric]?.source;

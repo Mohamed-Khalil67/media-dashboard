@@ -98,6 +98,12 @@ export interface AdInput {
   totals: AdTotals;
   /** Daily points for the window, any order. Used for fatigue and spend stability. */
   daily: DailyPoint[];
+  /**
+   * Last day of the reporting window (YYYY-MM-DD, ad account time zone).
+   * Fatigue windows end here; defaults to the latest date in `daily`. Pass it
+   * when `daily` omits days without delivery, so a paused week reads as empty.
+   */
+  asOf?: string;
   rankings: AdRankings;
   retention: RetentionPoint[] | null;
   videoLengthSec: number | null;

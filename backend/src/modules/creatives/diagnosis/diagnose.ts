@@ -2,7 +2,7 @@ import { STAGE_ORDER, resolveThresholds } from "./config";
 import { assertNever, money } from "./copy";
 import { deriveMetrics } from "./metrics";
 import { runStageChecks } from "./stages";
-import type { AdInput, Diagnosis, DiagnosisContext, Finding, Performance, Severity, Verdict } from "./types";
+import type { AdInput, BaselineSource, Diagnosis, DiagnosisContext, Finding, Performance, Severity, Verdict } from "./types";
 import { decideConfidence, decideVerdict, failingCreativeStages, primaryFinding, scorePerformance } from "./verdict";
 
 const SEVERITY_RANK: Record<Severity, number> = { critical: 0, warning: 1, info: 2 };
@@ -79,7 +79,8 @@ export function diagnoseAd(input: AdInput, ctx: DiagnosisContext): Diagnosis {
   const thresholds = resolveThresholds(ctx.thresholds);
   const { baselines, targets } = ctx;
   const metrics = deriveMetrics(input.totals, input.objective, input.format);
-  const findings = sortFindings(runStageChecks({ input, metrics, baselines, targets, thresholds }));
+  const consultedSources = new Set<BaselineSource>();
+  const findings = sortFindings(runStageChecks({ input, metrics, baselines, targets, thresholds, consultedSources }));
   const scored = scorePerformance(input, metrics, baselines, targets);
   const verdict = decideVerdict({ input, findings, scored, baselines, targets, thresholds });
   const primary = primaryFinding(verdict, findings);
@@ -88,7 +89,7 @@ export function diagnoseAd(input: AdInput, ctx: DiagnosisContext): Diagnosis {
   return {
     adId: input.adId,
     verdict,
-    confidence: decideConfidence(impressions, findings, scored, baselines, thresholds),
+    confidence: decideConfidence(impressions, findings, scored, baselines, thresholds, consultedSources),
     headline: buildHeadline(
       verdict,
       primary,

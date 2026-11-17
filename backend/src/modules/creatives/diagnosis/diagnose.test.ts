@@ -166,6 +166,14 @@ describe("confidence", () => {
     expect(diagnose({ totals: { video3s: 6000 } }, ctx).confidence).toBe("medium");
   });
 
+  it("drops to medium when a check passes against a heuristic baseline", () => {
+    // Tiny heuristic hook baseline: the ad clears it easily, so no hook finding is raised.
+    const ctx = makeCtx({ baselines: { ...ACCOUNT_BASELINES, hookRate: { value: 0.0001, source: "heuristic", sampleSize: 0 } } });
+    const d = diagnose({}, ctx);
+    expect(d.findings.some((f) => f.stage === "hook")).toBe(false);
+    expect(d.confidence).toBe("medium");
+  });
+
   it("is low on little data", () => {
     expect(diagnose({ totals: SMALL }).confidence).toBe("low");
   });

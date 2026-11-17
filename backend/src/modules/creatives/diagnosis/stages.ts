@@ -16,6 +16,7 @@ import { biggestDrop, recentTrend } from "./signals";
 import type {
   AdInput,
   AdRankings,
+  BaselineSource,
   Baselines,
   Comparison,
   DerivedMetrics,
@@ -34,6 +35,11 @@ export interface StageContext {
   baselines: Baselines;
   targets: Targets;
   thresholds: Thresholds;
+  /**
+   * Collects the source of every baseline a check compared against, whether or
+   * not the comparison produced a finding. Confidence scoring reads it.
+   */
+  consultedSources?: Set<BaselineSource>;
 }
 
 /** Effective statuses that may legitimately show no impressions yet. */
@@ -59,6 +65,7 @@ function severityFor(c: Comparison, t: Thresholds): Severity {
 
 function weakComparison(metric: MetricKey, ctx: StageContext): Comparison | null {
   const c = compare(metric, ctx.metrics[metric], ctx.baselines);
+  if (c) ctx.consultedSources?.add(c.baselineSource);
   return c && isWorse(c, ctx.thresholds) ? c : null;
 }
 
@@ -271,7 +278,7 @@ function checkFatigue(ctx: StageContext): Finding[] {
   const { frequency } = ctx.input.totals;
   const t = ctx.thresholds;
   if (frequency < t.fatigueFrequency) return [];
-  const trend = recentTrend(ctx.input.daily);
+  const trend = recentTrend(ctx.input.daily, 7, 14, ctx.input.asOf);
   const hookDrop = trend.hookChange !== null && trend.hookChange <= -t.fatigueDrop ? -trend.hookChange : null;
   const ctrDrop = trend.ctrChange !== null && trend.ctrChange <= -t.fatigueDrop ? -trend.ctrChange : null;
   if (hookDrop === null && ctrDrop === null) return [];

@@ -42,18 +42,47 @@ function relativeChange(recent: number | null, earlier: number | null): number |
   return (recent - earlier) / earlier;
 }
 
-/**
- * Compare the last `recentDays` days with the `baselineDays` before them.
- * Needs at least `recentDays + 3` days with impressions, otherwise every
- * value is null — too little history to call a trend.
- */
-export function recentTrend(daily: readonly DailyPoint[], recentDays = 7, baselineDays = 14): Trend {
-  const active = [...daily].filter((d) => d.impressions > 0).sort((a, b) => a.date.localeCompare(b.date));
-  const empty: Trend = { recentHook: null, earlierHook: null, recentCtr: null, earlierCtr: null, hookChange: null, ctrChange: null };
-  if (active.length < recentDays + 3) return empty;
+const DAY_MS = 24 * 60 * 60 * 1000;
+/** Each window needs at least this many days with impressions to be compared. */
+const MIN_ACTIVE_DAYS_PER_WINDOW = 3;
 
-  const recent = active.slice(-recentDays);
-  const earlier = active.slice(-(recentDays + baselineDays), -recentDays);
+/** Whole days since the epoch for a YYYY-MM-DD date; null when it doesn't parse. */
+function dayNumber(date: string): number | null {
+  const ms = Date.parse(`${date}T00:00:00Z`);
+  return Number.isNaN(ms) ? null : Math.floor(ms / DAY_MS);
+}
+
+/**
+ * Compare the last `recentDays` calendar days with the `baselineDays` calendar
+ * days before them. Windows end at `asOf` (YYYY-MM-DD), defaulting to the latest
+ * date in `daily`, so a paused week is an empty window rather than being
+ * back-filled with older active days.
+ *
+ * Every value is null — too little data to call a trend — unless the two
+ * windows hold at least `recentDays + 3` days with impressions in total and
+ * each holds at least 3.
+ */
+export function recentTrend(daily: readonly DailyPoint[], recentDays = 7, baselineDays = 14, asOf?: string): Trend {
+  const empty: Trend = { recentHook: null, earlierHook: null, recentCtr: null, earlierCtr: null, hookChange: null, ctrChange: null };
+  const dated = daily.flatMap((d) => {
+    const day = dayNumber(d.date);
+    return day === null ? [] : [{ point: d, day }];
+  });
+  const anchor = asOf !== undefined ? dayNumber(asOf) : dated.reduce<number | null>((max, d) => (max === null || d.day > max ? d.day : max), null);
+  if (anchor === null) return empty;
+
+  const active = dated.filter((d) => d.point.impressions > 0);
+  const recentStart = anchor - recentDays + 1;
+  const earlierStart = recentStart - baselineDays;
+  const recent = active.filter((d) => d.day >= recentStart && d.day <= anchor).map((d) => d.point);
+  const earlier = active.filter((d) => d.day >= earlierStart && d.day < recentStart).map((d) => d.point);
+  if (
+    recent.length + earlier.length < recentDays + 3 ||
+    recent.length < MIN_ACTIVE_DAYS_PER_WINDOW ||
+    earlier.length < MIN_ACTIVE_DAYS_PER_WINDOW
+  ) {
+    return empty;
+  }
 
   const recentHook = ratio(sum(recent, "video3s"), sum(recent, "impressions"));
   const earlierHook = ratio(sum(earlier, "video3s"), sum(earlier, "impressions"));
