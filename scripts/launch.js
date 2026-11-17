@@ -42,6 +42,20 @@ console.log(`${colors.bold}${colors.cyan}=======================================
 console.log(`${colors.bold}${colors.cyan}   Media Buying Dashboard — Local Dev Environment    ${colors.reset}`);
 console.log(`${colors.bold}${colors.cyan}====================================================${colors.reset}\n`);
 
+// 0. Install dependencies on a fresh checkout. The root package has no
+// workspaces, so backend/ and frontend/ each need their own install.
+for (const [name, dir] of [['backend', BACKEND_DIR], ['frontend', FRONTEND_DIR]]) {
+  if (!fs.existsSync(path.join(dir, 'node_modules'))) {
+    console.log(`${colors.yellow}[SETUP] ${name}/node_modules missing. Running npm ci (first run only)...${colors.reset}`);
+    try {
+      execSync(`${npmCmd} ci`, { cwd: dir, stdio: 'inherit' });
+    } catch {
+      console.error(`${colors.red}[SETUP] npm ci failed in ${name}/. Fix the error above, then run npm run dev again.${colors.reset}`);
+      process.exit(1);
+    }
+  }
+}
+
 // 1. Check backend .env
 const envFile = path.join(BACKEND_DIR, '.env');
 const envExample = path.join(BACKEND_DIR, '.env.example');
