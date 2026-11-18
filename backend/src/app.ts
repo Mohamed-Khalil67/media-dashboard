@@ -8,10 +8,18 @@ import connectionsRoutes from "./modules/connections/connections.routes";
 import syncRoutes from "./modules/sync/sync.routes";
 import metricsRoutes from "./modules/metrics/metrics.routes";
 import alertsRoutes from "./modules/alerts/alerts.routes";
+import creativesRoutes from "./modules/creatives/creatives.routes";
 import { apiLimiter } from "./middleware/rateLimit";
 import { logger } from "./lib/logger";
 
 export const app = express();
+
+// Behind a hosting proxy (Render, Railway…) the client IP is in X-Forwarded-For.
+// Trust exactly one hop so express-rate-limit keys on the real client IP
+// instead of treating every visitor as the proxy.
+if (process.env.TRUST_PROXY_HOPS !== undefined) {
+  app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS));
+}
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -55,6 +63,7 @@ app.use("/api/sync", syncRoutes);
 // Prevent browsers from caching metrics/alerts responses so filter changes always hit the DB.
 app.use("/api/metrics", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); }, metricsRoutes);
 app.use("/api/alerts", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); }, alertsRoutes);
+app.use("/api/creatives", (_req, res, next) => { res.setHeader("Cache-Control", "no-store"); next(); }, creativesRoutes);
 
 // Centralized error handler — must have 4 args for Express to recognize it.
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {

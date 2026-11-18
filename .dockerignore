@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/.angular
+backend/public
+**/.env
+**/.env.*
+**/*firebase-adminsdk*.json
+**/*.serviceAccount.json
+.git
+e2e
+docs

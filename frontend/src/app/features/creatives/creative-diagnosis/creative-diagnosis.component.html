@@ -1,0 +1,200 @@
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a routerLink="/creatives" [queryParams]="{ range: selectedRange() }">Creatives</a>
+  <span aria-hidden="true">›</span>
+  <span>{{ d()?.row?.name ?? "Ad" }}</span>
+  <label class="range">
+    <span class="sr-only">Date range</span>
+    <select (change)="setRange(value($event))">
+      @for (r of ranges; track r) {
+        <option [value]="r" [selected]="r === selectedRange()">{{ rangeLabels[r] }}</option>
+      }
+    </select>
+  </label>
+</nav>
+
+@if (detail.isLoading() && !d()) {
+  <div class="card skeleton" aria-busy="true"></div>
+} @else if (detail.error()) {
+  <div class="card empty" role="alert">
+    <h2>Couldn't load this ad</h2>
+    <p>It may not have delivered in the selected period, or the backend is unavailable. Try a longer date range.</p>
+  </div>
+} @else if (d(); as d) {
+  <section class="card head">
+    <div class="thumb">
+      @if (d.row.thumbnailUrl) {
+        <img [src]="d.row.thumbnailUrl" alt="" referrerpolicy="no-referrer" />
+      } @else {
+        <span aria-hidden="true">{{ d.row.format === 'VIDEO' ? '▶' : '▣' }}</span>
+      }
+      @if (duration(d.row.videoLengthSec); as len) {
+        <span class="len">{{ len }}</span>
+      }
+    </div>
+    <div class="head-body">
+      <p class="ctx">
+        {{ d.row.accountName }} · {{ d.row.campaignName }} · {{ d.row.adSetName }} · {{ objectiveLabels[d.row.objective] }} · {{ formatLabels[d.row.format] }}
+      </p>
+      <div class="verdict-line">
+        <app-verdict-badge [verdict]="d.row.verdict" />
+        <span class="meta">
+          {{ d.row.confidence }} confidence · {{ compact(d.totals.impressions) }} impressions · {{ money(d.totals.spend, d.row.currency) }} spent
+        </span>
+      </div>
+      <h1 class="headline">{{ d.row.headline }}</h1>
+      @if (d.dataProgress !== null) {
+        <div class="progress" role="progressbar" [attr.aria-valuenow]="Math.round(d.dataProgress * 100)" aria-valuemin="0" aria-valuemax="100" aria-label="Data collected toward a verdict">
+          <span [style.width.%]="d.dataProgress * 100"></span>
+        </div>
+      }
+      <p class="target">
+        @if (d.performance.metric) {
+          Judged on {{ d.performance.metric }}
+          @if (d.performance.reference !== null) {
+            against {{ num(d.performance.reference, 2) }} ({{ d.performance.referenceSource === 'target' ? d.targets.source + ' target' : d.performance.referenceSource === 'default' ? 'break-even default' : 'account median' }})
+          }
+        } @else {
+          This objective has no success metric to judge against, so the verdict uses the funnel only.
+        }
+      </p>
+    </div>
+  </section>
+
+  @if (d.issues.length > 0 || d.rejectionReasons.length > 0) {
+    <section class="card alert" role="status">
+      <h2>Delivery problems reported by Meta</h2>
+      <ul>
+        @for (r of d.rejectionReasons; track $index) {
+          <li>Rejected: {{ r }}</li>
+        }
+        @for (i of d.issues; track $index) {
+          <li>{{ i }}</li>
+        }
+      </ul>
+    </section>
+  }
+
+  <section class="card funnel-card">
+    <h2 class="label">Where viewers leave · each step vs the account's median for this objective</h2>
+    <ol class="funnel">
+      @for (s of d.funnel; track s.key) {
+        <li class="step" [class]="'step s-' + s.status">
+          <span class="step-label">{{ s.label }}</span>
+          <span class="step-value">{{ stepValue(s) }}</span>
+          <span class="step-note">{{ stepCompare(s) ?? s.note ?? '' }}@if (s.status === 'weak') { · weak }</span>
+          <span class="bar" aria-hidden="true"><span [style.width.%]="barWidth(s)"></span></span>
+        </li>
+      }
+    </ol>
+  </section>
+
+  <div class="two">
+    <section class="card">
+      <h2 class="label">Retention · share of plays still watching</h2>
+      @if (geometry(); as g) {
+        <svg [attr.viewBox]="'0 0 ' + chart.w + ' ' + chart.h" class="chart" role="img"
+             [attr.aria-label]="'Retention curve. ' + (g.drop?.label ?? '')">
+          <line [attr.x1]="chart.left" [attr.x2]="chart.w - chart.right" [attr.y1]="chart.h - chart.bottom" [attr.y2]="chart.h - chart.bottom" class="axis" />
+          <line [attr.x1]="chart.left" [attr.x2]="chart.w - chart.right" [attr.y1]="chart.top + (chart.h - chart.top - chart.bottom) / 2" [attr.y2]="chart.top + (chart.h - chart.top - chart.bottom) / 2" class="grid" />
+          <line [attr.x1]="chart.left" [attr.x2]="chart.w - chart.right" [attr.y1]="chart.top" [attr.y2]="chart.top" class="grid" />
+          <text x="4" [attr.y]="chart.top + 4" class="tick">100%</text>
+          <text x="10" [attr.y]="chart.top + (chart.h - chart.top - chart.bottom) / 2 + 4" class="tick">50%</text>
+          @if (g.drop; as drop) {
+            <rect [attr.x]="drop.x" [attr.y]="chart.top" [attr.width]="drop.width" [attr.height]="chart.h - chart.top - chart.bottom" class="drop" />
+            <text [attr.x]="drop.labelX" [attr.y]="chart.top + 24" class="drop-label">{{ drop.label }}</text>
+          }
+          @if (g.baseline) {
+            <path [attr.d]="g.baseline" class="baseline" />
+          }
+          <path [attr.d]="g.line" class="line" />
+          @for (m of g.markers; track $index) {
+            <circle [attr.cx]="m.x" [attr.cy]="m.y" r="4.5" class="marker" />
+          }
+          @for (t of g.xTicks; track t.label) {
+            <text [attr.x]="t.x" [attr.y]="chart.h - 8" class="tick" text-anchor="middle">{{ t.label }}</text>
+          }
+        </svg>
+        <p class="legend">
+          <span><span class="key key-line" aria-hidden="true"></span>This ad</span>
+          @if (g.baseline) {
+            <span><span class="key key-base" aria-hidden="true"></span>Median of this account's other videos</span>
+          }
+        </p>
+      } @else {
+        <p class="muted">
+          @if (d.row.format === 'VIDEO') {
+            Meta hasn't returned a retention curve for this video in this period yet.
+          } @else {
+            Retention applies to video ads only.
+          }
+        </p>
+      }
+    </section>
+
+    <div class="side">
+      <section class="card">
+        <h2 class="label">Meta relevance rankings</h2>
+        <ul class="kv">
+          @for (r of rankings(); track r.name) {
+            <li><span>{{ r.name }}</span><span [class]="'rank r-' + r.view.tone"><span aria-hidden="true">{{ r.view.icon }}</span> {{ r.view.label }}</span></li>
+          }
+        </ul>
+      </section>
+      <section class="card">
+        <h2 class="label">By placement</h2>
+        @if (d.placements.length > 0) {
+          <ul class="kv">
+            @for (p of d.placements.slice(0, 6); track p.placement) {
+              <li>
+                <span>{{ placementLabel(p.placement) }}</span>
+                <span class="mono">
+                  @if (p.hookRate !== null) { hook {{ pct(p.hookRate) }} · }
+                  CTR {{ pct(p.ctr, 1) }} · ROAS {{ num(p.roas, 1) }}
+                </span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="muted">No placement breakdown for this period.</p>
+        }
+      </section>
+    </div>
+  </div>
+
+  <div class="two">
+    <section class="card">
+      <h2 class="label">Findings</h2>
+      @if (d.findings.length > 0) {
+        <ul class="findings">
+          @for (f of d.findings; track $index) {
+            <li [class]="'f f-' + f.severity">
+              <span class="f-stage">{{ stageLabels[f.stage] }}</span>
+              <p class="f-msg">{{ f.message }}</p>
+              <p class="f-rec">{{ f.recommendation }}</p>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p class="muted">No problems found in this period.</p>
+      }
+    </section>
+    <section class="card">
+      @if (trend(); as t) {
+        <h2 class="label">{{ t.label }}</h2>
+        <svg [attr.viewBox]="'0 0 ' + t.w + ' ' + t.h" class="spark" role="img" [attr.aria-label]="t.label + ' from ' + t.first + ' to ' + t.last">
+          <polyline [attr.points]="t.points" class="line" />
+        </svg>
+        <p class="legend"><span>{{ t.first }}</span><span>{{ t.last }}</span></p>
+      } @else {
+        <h2 class="label">Trend</h2>
+        <p class="muted">Needs at least two days of delivery.</p>
+      }
+      <ul class="kv totals">
+        <li><span>Reach</span><span class="mono">{{ compact(d.totals.reach) }}</span></li>
+        <li><span>Frequency</span><span class="mono">{{ num(d.totals.frequency, 2) }}</span></li>
+        <li><span>Link clicks</span><span class="mono">{{ compact(d.totals.linkClicks) }}</span></li>
+        <li><span>Revenue</span><span class="mono">{{ money(d.totals.revenue, d.row.currency) }}</span></li>
+      </ul>
+    </section>
+  </div>
+}

@@ -2,17 +2,47 @@ import { prisma } from "../../db/client";
 import { syncFacebook, isAuthError, describeSyncError } from "../../jobs/sync.facebook";
 import { syncShopify } from "../../jobs/sync.shopify";
 import { logger } from "../../lib/logger";
+import type { Connection } from "@prisma/client";
 import { SyncResultDto } from "./dto/sync.dto";
 
-export class SyncService {
-  async runUserConnections(
-    userId: string,
-    platformFilter?: string
-  ): Promise<SyncResultDto[]> {
-    const where: Record<string, unknown> = { userId, status: "active" };
-    if (platformFilter) where.platform = platformFilter;
-    const connections = await prisma.connection.findMany({ where });
+/** A connection synced less than this long ago is skipped by manual sync. */
+const MANUAL_SYNC_COOLDOWN_SECONDS = Math.max(0, Number(process.env.MANUAL_SYNC_COOLDOWN_SECONDS ?? 60) || 0);
 
+export type ManualSyncOutcome =
+  | { kind: "ok"; results: SyncResultDto[] }
+  | { kind: "busy" }
+  | { kind: "cooldown"; retryAfterSeconds: number };
+
+export class SyncService {
+  /** Users with a manual sync in flight in this process. */
+  private readonly inFlight = new Set<string>();
+
+  /**
+   * Manual "sync now". Bounded so one account can't hammer Meta/Shopify or
+   * exhaust the free-tier database: one manual sync per user at a time, and
+   * connections synced within the cooldown are skipped.
+   */
+  async runUserConnections(userId: string, platformFilter?: "facebook" | "shopify"): Promise<ManualSyncOutcome> {
+    if (this.inFlight.has(userId)) return { kind: "busy" };
+    this.inFlight.add(userId);
+    try {
+      const connections = await prisma.connection.findMany({
+        where: { userId, status: "active", ...(platformFilter ? { platform: platformFilter } : {}) },
+      });
+      const now = Date.now();
+      const waitSeconds = (c: Connection) =>
+        c.lastSyncAt ? Math.ceil(MANUAL_SYNC_COOLDOWN_SECONDS - (now - c.lastSyncAt.getTime()) / 1000) : 0;
+      const eligible = connections.filter((c) => waitSeconds(c) <= 0);
+      if (connections.length > 0 && eligible.length === 0) {
+        return { kind: "cooldown", retryAfterSeconds: Math.max(1, Math.min(...connections.map(waitSeconds))) };
+      }
+      return { kind: "ok", results: await this.syncList(eligible) };
+    } finally {
+      this.inFlight.delete(userId);
+    }
+  }
+
+  private async syncList(connections: Connection[]): Promise<SyncResultDto[]> {
     const results: SyncResultDto[] = [];
     for (const conn of connections) {
       const run = await prisma.syncRun.create({ data: { connectionId: conn.id } });

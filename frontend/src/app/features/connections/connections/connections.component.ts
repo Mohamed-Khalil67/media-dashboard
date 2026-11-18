@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from "@angular/core";
 import { ActivatedRoute } from "@angular/router";
 import { FormBuilder, ReactiveFormsModule, Validators } from "@angular/forms";
-import { ConnectionsService } from "../../../core/connections.service";
+import { ConnectionsService, apiErrorMessage } from "../../../core/connections.service";
 import { StatusBarService } from "../../../core/status-bar.service";
 import { Connection, Platform } from "../../../core/models/connection.models";
 import { SyncHistoryComponent } from "../sync-history/sync-history.component";
@@ -195,8 +195,8 @@ export class ConnectionsComponent implements OnInit {
         connectionId: editing?.id,
       });
       window.location.href = res.url;
-    } catch (err: any) {
-      this.modalError.set(err?.error?.error ?? `Could not start ${platform} connect flow`);
+    } catch (err) {
+      this.modalError.set(apiErrorMessage(err) ?? `Could not start ${platform} connect flow`);
     } finally {
       this.submitting.set(false);
     }

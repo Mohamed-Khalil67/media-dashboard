@@ -31,9 +31,9 @@ model User {
 }
 
 model Connection {
-  id             String         @id @default(cuid())
-  userId         String
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // User-supplied developer-app credentials. Every connection brings its own;
   // there is no shared/system-wide Facebook/Shopify app any more.
@@ -46,24 +46,32 @@ model Connection {
   syncSince DateTime?
   syncUntil DateTime?
 
-  platform       String // facebook | shopify
-  accountId      String // ad account id or shop domain
-  accountName    String?
-  accessToken    String // ENCRYPTED at rest
-  refreshToken   String? // ENCRYPTED at rest
-  tokenExpiresAt DateTime?
+  platform        String // facebook | shopify
+  accountId       String // ad account id or shop domain
+  accountName     String?
+  accessToken     String // ENCRYPTED at rest
+  refreshToken    String? // ENCRYPTED at rest
+  tokenExpiresAt  DateTime?
   // pending — credentials saved but OAuth not yet completed
   // active  — usable
   // expired — token rejected by the platform; re-auth required
   // revoked — user disconnected
-  status         String         @default("pending")
-  createdAt      DateTime       @default(now())
-  lastSyncAt     DateTime?
-  lastSyncOk     Boolean?
-  lastSyncError  String?
-  campaigns      Campaign[]
-  shopifyOrders  ShopifyOrder[]
-  syncRuns       SyncRun[]
+  status          String         @default("pending")
+  createdAt       DateTime       @default(now())
+  lastSyncAt      DateTime?
+  lastSyncOk      Boolean?
+  lastSyncError   String?
+  // Ad-level (creative) sync runs less often than campaign sync; see sync.facebook.ads.ts.
+  lastAdSyncAt    DateTime?
+  lastAdSyncError String?
+  // Account-level targets for creative verdicts (account currency).
+  // Null = fall back to break-even ROAS 1.0. A campaign may override them.
+  targetRoas      Float?
+  targetCpa       Float?
+  currency        String?
+  campaigns       Campaign[]
+  shopifyOrders   ShopifyOrder[]
+  syncRuns        SyncRun[]
 
   @@unique([userId, platform, accountId])
   @@index([userId])
@@ -91,8 +99,13 @@ model Campaign {
   name              String
   status            String
   createdAtPlatform DateTime?
+  // Meta objective as returned (OUTCOME_SALES, legacy CONVERSIONS, …).
+  objective         String?
+  targetRoas        Float?
+  targetCpa         Float?
   raw               Json?
   insights          Insight[]
+  adSets            AdSet[]
 
   @@unique([connectionId, externalId])
   @@index([connectionId])
@@ -117,19 +130,19 @@ model Insight {
 }
 
 model ShopifyOrder {
-  id           String     @id @default(cuid())
-  connectionId String
-  connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
-  externalId   String
-  totalPrice   Float
-  createdAt    DateTime
+  id                String     @id @default(cuid())
+  connectionId      String
+  connection        Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  externalId        String
+  totalPrice        Float
+  createdAt         DateTime
   customerEmail     String?
-  lineItemsCount    Int     @default(0)
+  lineItemsCount    Int        @default(0)
   financialStatus   String?
   fulfillmentStatus String?
   currency          String?
   orderNumber       String?
-  raw          Json?
+  raw               Json?
 
   @@unique([connectionId, externalId])
   @@index([connectionId])
@@ -148,4 +161,115 @@ model AlertRule {
   enabled   Boolean @default(true)
 
   @@index([userId])
+}
+
+// ─── Creative diagnosis (ad-level, read-only sync) ──────────────────────────
+
+model AdSet {
+  id               String   @id @default(cuid())
+  campaignId       String
+  campaign         Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  externalId       String
+  name             String
+  effectiveStatus  String
+  // learning_stage_info.status: LEARNING | SUCCESS | FAIL (≈ "learning limited")
+  learningStatus   String?
+  optimizationGoal String?
+  dailyBudget      Float?
+  lifetimeBudget   Float?
+  ads              Ad[]
+
+  @@unique([campaignId, externalId])
+  @@index([campaignId])
+}
+
+model Ad {
+  id                String            @id @default(cuid())
+  adSetId           String
+  adSet             AdSet             @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  externalId        String
+  name              String
+  effectiveStatus   String
+  // VIDEO | IMAGE | CAROUSEL | DYNAMIC | UNKNOWN
+  format            String
+  creativeId        String?
+  videoId           String?
+  // Signed URL from Meta that can expire; refreshed on every ad sync.
+  thumbnailUrl      String?
+  videoLengthSec    Float?
+  // string[] from issues_info / ad_review_feedback
+  issues            Json?
+  rejectionReasons  Json?
+  createdAtPlatform DateTime?
+  daily             AdInsightDaily[]
+  windows           AdWindowStat[]
+  placements        AdPlacementStat[]
+
+  @@unique([adSetId, externalId])
+  @@index([adSetId])
+}
+
+/// One row per ad per day (account time zone). Additive metrics only — never sum reach.
+model AdInsightDaily {
+  id               String   @id @default(cuid())
+  adId             String
+  ad               Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  date             DateTime
+  spend            Float    @default(0)
+  impressions      Int      @default(0)
+  linkClicks       Int      @default(0)
+  videoPlays       Int      @default(0)
+  video3s          Int      @default(0)
+  thruplays        Int      @default(0)
+  p25              Int      @default(0)
+  p50              Int      @default(0)
+  p75              Int      @default(0)
+  p95              Int      @default(0)
+  p100             Int      @default(0)
+  landingPageViews Int      @default(0)
+  purchases        Int      @default(0)
+  leads            Int      @default(0)
+  revenue          Float    @default(0)
+
+  @@unique([adId, date])
+  @@index([date])
+}
+
+/// Window-level stats that cannot be summed from daily rows: reach, frequency,
+/// relevance rankings and the retention curve. One row per ad per window length.
+model AdWindowStat {
+  id                String   @id @default(cuid())
+  adId              String
+  ad                Ad       @relation(fields: [adId], references: [id], onDelete: Cascade)
+  windowDays        Int
+  windowStart       DateTime
+  windowEnd         DateTime
+  reach             Int      @default(0)
+  frequency         Float    @default(0)
+  impressions       Int      @default(0)
+  spend             Float    @default(0)
+  qualityRanking    String?
+  engagementRanking String?
+  conversionRanking String?
+  // [{ second, share }] with share 0..1, from video_play_curve_actions
+  retention         Json?
+  syncedAt          DateTime @default(now())
+
+  @@unique([adId, windowDays])
+}
+
+model AdPlacementStat {
+  id                String @id @default(cuid())
+  adId              String
+  ad                Ad     @relation(fields: [adId], references: [id], onDelete: Cascade)
+  windowDays        Int
+  publisherPlatform String
+  platformPosition  String
+  spend             Float  @default(0)
+  impressions       Int    @default(0)
+  video3s           Int    @default(0)
+  linkClicks        Int    @default(0)
+  revenue           Float  @default(0)
+
+  @@unique([adId, windowDays, publisherPlatform, platformPosition])
 }

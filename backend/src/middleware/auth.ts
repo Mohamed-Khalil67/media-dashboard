@@ -10,6 +10,8 @@ export interface AuthedRequest extends Request {
 interface DecodedClaims {
   uid: string;
   email?: string;
+  /** Firebase's own verification flag; only a verified email may claim an existing account. */
+  emailVerified: boolean;
   name?: string;
 }
 
@@ -32,7 +34,12 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
   let claims: DecodedClaims;
   try {
     const decoded = await firebaseAuth().verifyIdToken(header.slice(7));
-    claims = { uid: decoded.uid, email: decoded.email, name: decoded.name };
+    claims = {
+      uid: decoded.uid,
+      email: decoded.email,
+      emailVerified: decoded.email_verified === true,
+      name: typeof decoded.name === "string" ? decoded.name : undefined,
+    };
   } catch (err) {
     logger.warn({ err }, "firebase id token rejected");
     return res.status(401).json({ error: "Invalid or expired token" });
@@ -58,6 +65,16 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       where: { email: normalizedEmail },
       select: { id: true, email: true, name: true, lastActiveAt: true },
     });
+    if (byEmail && !claims.emailVerified) {
+      // Without this check, anyone who can get Firebase to mint a token carrying
+      // the victim's email (unverified sign-up, some OIDC providers) would
+      // inherit their connections and tokens.
+      logger.warn({ userId: byEmail.id }, "refused to link unverified email to existing user");
+      return res.status(403).json({
+        error: "email_not_verified",
+        message: "An account with this email already exists. Verify your email address, then sign in again.",
+      });
+    }
     if (byEmail) {
       await prisma.user.update({ where: { id: byEmail.id }, data: { firebaseUid: claims.uid } });
       user = byEmail;

@@ -1,5 +1,5 @@
 import { Injectable, inject } from "@angular/core";
-import { HttpClient, HttpParams } from "@angular/common/http";
+import { HttpClient, HttpErrorResponse, HttpParams } from "@angular/common/http";
 import { firstValueFrom } from "rxjs";
 import { environment } from "../../environments/environment";
 import {
@@ -9,6 +9,29 @@ import {
   ConnectStartResponse,
   Platform,
 } from "./models/connection.models";
+
+/** The API's human-readable `message` (or, failing that, its `error` code) from an HTTP error. */
+export function apiErrorMessage(err: unknown): string | null {
+  if (!(err instanceof HttpErrorResponse)) return null;
+  const body: unknown = err.error;
+  if (typeof body !== "object" || body === null) return null;
+  if ("message" in body && typeof body.message === "string") return body.message;
+  if ("error" in body && typeof body.error === "string") return body.error;
+  return null;
+}
+
+/**
+ * The server's explanation when "sync now" is refused (429: a sync is already
+ * running, or the accounts synced moments ago). Null for any other failure.
+ */
+export function syncRefusedMessage(err: unknown): string | null {
+  if (!(err instanceof HttpErrorResponse) || err.status !== 429) return null;
+  const body: unknown = err.error;
+  if (typeof body === "object" && body !== null && "message" in body && typeof body.message === "string") {
+    return body.message;
+  }
+  return "Synced moments ago. Try again in a minute.";
+}
 
 export interface SyncRunResult {
   connectionId: string;

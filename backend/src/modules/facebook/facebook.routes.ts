@@ -3,6 +3,7 @@ import { requireAuth, AuthedRequest } from "../../middleware/auth";
 import { prisma } from "../../db/client";
 import { encrypt, decrypt } from "../../utils/encryption";
 import { signState, verifyState } from "../../utils/oauthState";
+import { parseSyncWindow } from "../../utils/syncWindow";
 import {
   duplicateCampaign,
   exchangeCodeForToken,
@@ -43,6 +44,10 @@ router.post("/connect-start", requireAuth, async (req: Request, res: Response) =
   if (typeof appSecret !== "string" || appSecret.trim().length < 16) {
     return res.status(400).json({ error: "app_secret_required" });
   }
+  const window = parseSyncWindow(since, until);
+  if (!window.ok) {
+    return res.status(400).json({ error: "invalid_sync_window", message: window.error });
+  }
   const effectiveRedirect = (typeof redirectUri === "string" && redirectUri.length > 0)
     ? redirectUri
     : `${frontendUrl().replace(/\/$/, "")}/api/facebook/callback`;
@@ -65,8 +70,8 @@ router.post("/connect-start", requireAuth, async (req: Request, res: Response) =
       appId,
       appSecret: encrypt(appSecret),
       redirectUri: effectiveRedirect,
-      syncSince: since ? new Date(since) : null,
-      syncUntil: until ? new Date(until) : null,
+      syncSince: window.value.since,
+      syncUntil: window.value.until,
     },
   });
 
