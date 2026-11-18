@@ -139,16 +139,40 @@ A unified dashboard combining:
 1. Go to [Meta for Developers](https://developers.facebook.com/apps) and create a **Business** app.
 2. Add products: **Facebook Login for Business** and **Marketing API**.
 3. Under Facebook Login > Settings > Valid OAuth Redirect URIs, add:  
-   `http://localhost:3000/api/facebook/callback`
+   `http://localhost:3000/api/facebook/callback`  
+   Production: `https://media-dashboard-5yew.onrender.com/api/facebook/callback`
 4. Copy **App ID** and **App Secret** from App Settings > Basic.
 5. In the UI, navigate to **Connections > Connect Facebook** and paste credentials.
 
 #### Shopify Partner App
 1. Go to [Shopify Partners](https://partners.shopify.com) and create a **Custom App**.
 2. Under Allowed redirection URL(s), add:  
-   `http://localhost:3000/api/shopify/callback`
+   `http://localhost:3000/api/shopify/callback`  
+   Production: `https://media-dashboard-5yew.onrender.com/api/shopify/callback`
 3. Scopes required: `read_orders,read_products,read_analytics` (requested automatically during OAuth flow).
 4. Copy **Client ID** and **Client Secret** and connect via **Connections > Connect Shopify** in the UI.
+
+---
+
+### Live Deployment (Render + Neon)
+
+The app is deployed as a single Docker web service on [Render](https://render.com) (free plan), using a [Neon](https://neon.tech) Postgres database. The API and the Angular app share one URL.
+
+- **Live app:** https://media-dashboard-5yew.onrender.com
+- **Health check:** https://media-dashboard-5yew.onrender.com/api/health
+- **Setup guide:** [docs/deploy-render-neon.md](docs/deploy-render-neon.md)
+- **Blueprint:** [render.yaml](render.yaml), read by Render on each deploy from `master`
+
+**Render environment variables:** `DATABASE_URL` (Neon direct connection string), `ENCRYPTION_KEY`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `FRONTEND_URL` (`https://media-dashboard-5yew.onrender.com`, no trailing slash). `JWT_SECRET`, `NODE_ENV` and `TRUST_PROXY_HOPS` are set by the Blueprint.
+
+**Follow-up setup after each new deployment URL:**
+
+1. **Firebase:** Authentication → Settings → Authorized domains → add `media-dashboard-5yew.onrender.com`.
+2. **Meta app:** Facebook Login → Settings → Valid OAuth Redirect URIs → add `https://media-dashboard-5yew.onrender.com/api/facebook/callback`.
+3. **Shopify app:** add `https://media-dashboard-5yew.onrender.com/api/shopify/callback` to Allowed redirection URL(s).
+4. **Render:** if `FRONTEND_URL` changes, update it and redeploy. The OAuth redirects use it.
+
+**Notes on the free tier:** the service sleeps after about 15 minutes without traffic, so the first request after that can take around a minute. Background sync only runs while the service is awake, and the daily cleanup also runs at each startup.
 
 ---
 
