@@ -12,12 +12,12 @@ import {
   updateCampaignBudget,
   updateCampaignSchedule,
 } from "./facebook.service";
+import { OAUTH_DIALOG_URL } from "./graph";
 import { logger } from "../../lib/logger";
 import { syncUserConnections } from "../../jobs/sync.job";
 
 const router = Router();
 
-const GRAPH_VERSION = process.env.FB_GRAPH_VERSION ?? "v21.0";
 const SCOPES = "ads_read,ads_management";
 const MAX_CAMPAIGN_NAME_LEN = 400;
 const ISO_DATETIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:?\d{2})?)?$/;
@@ -85,7 +85,7 @@ router.post("/connect-start", requireAuth, async (req: Request, res: Response) =
 
   res.json({
     connectionId: connection.id,
-    url: `https://www.facebook.com/${GRAPH_VERSION}/dialog/oauth?${params.toString()}`,
+    url: `${OAUTH_DIALOG_URL}?${params.toString()}`,
   });
 });
 
