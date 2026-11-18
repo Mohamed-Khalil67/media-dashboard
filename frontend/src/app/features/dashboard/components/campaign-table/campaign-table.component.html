@@ -1,0 +1,226 @@
+<article class="card">
+      <header>
+        <div class="title-row">
+          <h3>Campaigns</h3>
+          <p class="muted">{{ filtered().length }} of {{ campaigns().length }}</p>
+        </div>
+        <div class="tools">
+          <input
+            type="search"
+            placeholder="Search campaigns…"
+            [value]="search()"
+            (input)="onSearchInput($event)" />
+          <label class="toggle">
+            <input type="checkbox" [checked]="activeOnly()" (change)="onActiveOnlyChange($event)" />
+            <span>Active only</span>
+          </label>
+          <div class="metric-toggle">
+            <button [class.active]="metricMode() === 'roas'" (click)="metricMode.set('roas')">ROAS</button>
+            <button [class.active]="metricMode() === 'cpa'" (click)="metricMode.set('cpa')">CPA</button>
+          </div>
+          <app-dropdown #moreDD align="right">
+            <span trigger class="more-trigger">⋯</span>
+            <div menu class="more-menu">
+              <button class="more-item" (click)="saveCurrentView(); moreDD.close()">💾 Save current view</button>
+              <button class="more-item" (click)="exportCsv(); moreDD.close()">⬇ Export CSV</button>
+            </div>
+          </app-dropdown>
+        </div>
+      </header>
+
+      @if (savedViews().length > 0) {
+        <div class="saved-views">
+          <span class="muted">Views:</span>
+          @for (v of savedViews(); track v.name) {
+            <button class="view-chip" (click)="applyView(v)">{{ v.name }}</button>
+            <button class="view-x" (click)="deleteView(v.name)" [attr.aria-label]="'Delete saved view ' + v.name" title="Delete">×</button>
+          }
+        </div>
+      }
+
+      @if (filtered().length === 0) {
+        <div class="empty">
+          @if (campaigns().length === 0) {
+            No campaigns yet.
+          } @else {
+            No campaigns match your filters.
+          }
+        </div>
+      } @else {
+        <table>
+          <thead>
+            <tr>
+              <th scope="col" class="col-flag"></th>
+              <th scope="col" class="col-name" (click)="toggleSort('name')">Campaign</th>
+              <th scope="col" class="col-account" (click)="toggleSort('accountName')">Account</th>
+              <th scope="col" class="col-tight" (click)="toggleSort('platform')">Platform</th>
+              <th scope="col" class="col-tight col-created" (click)="toggleSort('createdAtPlatform')">Created</th>
+              <th scope="col" (click)="toggleSort('spend')" class="num">Spend</th>
+              <th scope="col" (click)="toggleSort('revenue')" class="num">Revenue</th>
+              <th scope="col" (click)="toggleSort('purchases')" class="num">Purchases</th>
+              @if (metricMode() === 'roas') {
+                <th scope="col" (click)="toggleSort('roas')" class="num">ROAS</th>
+              } @else {
+                <th scope="col" (click)="toggleSort('cpa')" class="num">CPA</th>
+              }
+              <th scope="col" (click)="toggleSort('frequency')" class="num">Freq.</th>
+              <th scope="col" class="col-trend">Trend</th>
+              <th scope="col" class="col-actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (c of sorted(); track c.campaignId) {
+              <tr [class.row--stalled]="c.deliveryStalled" [class.row--anomaly]="c.anomalous">
+                <td class="flags">
+                  @if (c.deliveryStalled) { <span class="flag flag--stalled" title="Delivery stopped">⏸</span> }
+                  @if (c.anomalous) { <span class="flag flag--anomaly" title="Anomalous spend today">⚡</span> }
+                </td>
+                <td class="name" [title]="c.name">
+                  @if (renamingId() === c.campaignId) {
+                    <input
+                      class="name-edit"
+                      [value]="renameDraft()"
+                      [disabled]="renameSaving()"
+                      (input)="renameDraft.set(asValue($event))"
+                      (keydown.enter)="commitRename(c)"
+                      (keydown.escape)="cancelRename()"
+                      (blur)="commitRename(c)"
+                      autoFocus
+                      maxlength="400"
+                      aria-label="Rename campaign"
+                    />
+                  } @else {
+                    @if (c.platform === 'facebook' && c.status !== 'ARCHIVED' && c.status !== 'DELETED') {
+                      <button
+                        type="button"
+                        class="name-trigger"
+                        (click)="startRename(c)"
+                        [title]="c.name"
+                      >
+                        <span class="name-text">{{ c.name }}</span>
+                      </button>
+                    } @else {
+                      <div class="name-text">{{ c.name }}</div>
+                    }
+                  }
+                  <small class="muted">{{ c.status }}</small>
+                </td>
+                <td class="account-name" [title]="c.accountName">{{ c.accountName }}</td>
+                <td><span class="badge badge--{{ c.platform }}">{{ c.platform }}</span></td>
+                <td class="created col-created">
+                  @if (c.createdAtPlatform) {
+                    {{ c.createdAtPlatform | date: "mediumDate" }}
+                  } @else {
+                    <span class="muted">—</span>
+                  }
+                </td>
+                <td class="num">{{ c.spend | currency: "EGP":"symbol":"1.0-0" }}</td>
+                <td class="num">{{ c.revenue | currency: "EGP":"symbol":"1.0-0" }}</td>
+                <td class="num">{{ c.purchases | number: "1.0-0" }}</td>
+                @if (metricMode() === 'roas') {
+                  <td class="num">
+                    <span class="roas" [class.roas--good]="c.roas >= 2" [class.roas--bad]="c.roas < 1 && c.spend > 0">
+                      {{ c.roas | number: "1.2-2" }}x
+                    </span>
+                  </td>
+                } @else {
+                  <td class="num">
+                    @if (c.purchases > 0) {
+                      {{ c.cpa | currency: "EGP":"symbol":"1.0-2" }}
+                    } @else {
+                      <span class="muted">—</span>
+                    }
+                  </td>
+                }
+                <td class="num">{{ c.frequency | number: "1.2-2" }}</td>
+                <td class="sparkline col-trend" [innerHTML]="sparkline(c.dailyRoas)"></td>
+                <td class="actions">
+                  @if (c.platform === 'facebook' && (c.status === 'ACTIVE' || c.status === 'PAUSED')) {
+                    <app-dropdown #actDD align="right">
+                      <span trigger class="actions-trigger-label">Actions</span>
+                      <div menu class="row-actions-panel">
+                        @if (c.status === 'ACTIVE') {
+                          <button class="row-act danger" (click)="togglePause(c, 'PAUSED'); actDD.close()" [disabled]="busy() === c.campaignId">Pause campaign</button>
+                        } @else if (c.status === 'PAUSED') {
+                          <button class="row-act success" (click)="togglePause(c, 'ACTIVE'); actDD.close()" [disabled]="busy() === c.campaignId">Resume campaign</button>
+                        }
+                        <button class="row-act" (click)="startRename(c); actDD.close()" [disabled]="busy() === c.campaignId">Rename</button>
+
+                        <div class="row-section">
+                          <label class="row-label">Daily budget (EGP)</label>
+                          <div class="row-input-row">
+                            <input type="number" min="1" step="1" inputmode="decimal" placeholder="e.g. 50"
+                              [value]="inlineDaily()" (input)="inlineDaily.set(asValue($event))"
+                              [disabled]="busy() === c.campaignId" />
+                            <button class="row-act-mini" (click)="commitInlineBudget(c, 'daily', actDD)" [disabled]="busy() === c.campaignId">Save</button>
+                          </div>
+                          <label class="row-label">Lifetime budget (EGP)</label>
+                          <div class="row-input-row">
+                            <input type="number" min="1" step="1" inputmode="decimal" placeholder="e.g. 1000"
+                              [value]="inlineLifetime()" (input)="inlineLifetime.set(asValue($event))"
+                              [disabled]="busy() === c.campaignId" />
+                            <button class="row-act-mini" (click)="commitInlineBudget(c, 'lifetime', actDD)" [disabled]="busy() === c.campaignId">Save</button>
+                          </div>
+                        </div>
+
+                        <button class="row-act" (click)="openDuplicate(c); actDD.close()" [disabled]="busy() === c.campaignId">Duplicate</button>
+                      </div>
+                    </app-dropdown>
+                  } @else {
+                    <span class="muted">—</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </article>
+
+    @if (duplicateTarget(); as target) {
+      <div class="modal-backdrop" (click)="closeDuplicate()">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="duplicate-title" (click)="$event.stopPropagation()">
+          <h2 id="duplicate-title">Duplicate campaign</h2>
+          <p class="muted">
+            Cloning <strong>{{ target.name }}</strong>
+            <br><small>{{ target.accountName }}</small>
+          </p>
+          <p class="hint">
+            Creates a copy of the campaign shell on Facebook. Ad sets and creatives are
+            not copied. Override any field below to differentiate the variant.
+          </p>
+          <div class="field">
+            <label for="d-name">New name</label>
+            <input id="d-name" type="text" maxlength="400"
+              [value]="duplicateName()" (input)="duplicateName.set(asValue($event))"
+              [disabled]="duplicateSaving()" />
+          </div>
+          <div class="field">
+            <label for="d-daily">Daily budget <span class="muted">(optional)</span></label>
+            <input id="d-daily" type="number" min="1" step="1" inputmode="decimal"
+              [value]="duplicateDaily()" (input)="duplicateDaily.set(asValue($event))"
+              [disabled]="duplicateSaving()" placeholder="Leave blank to copy from source" />
+          </div>
+          <div class="field">
+            <label for="d-start">Start date <span class="muted">(optional)</span></label>
+            <input id="d-start" type="date"
+              [value]="duplicateStart()" (input)="duplicateStart.set(asValue($event))"
+              [disabled]="duplicateSaving()" />
+          </div>
+          <label class="check-row">
+            <input type="checkbox"
+              [checked]="duplicateStartPaused()"
+              (change)="duplicateStartPaused.set(asChecked($event))"
+              [disabled]="duplicateSaving()" />
+            <span>Start paused (recommended)</span>
+          </label>
+          @if (duplicateError(); as e) { <div class="banner banner--error">{{ e }}</div> }
+          <div class="actions-row">
+            <button type="button" class="btn-ghost" (click)="closeDuplicate()" [disabled]="duplicateSaving()">Cancel</button>
+            <button type="button" class="btn-primary" (click)="submitDuplicate(target)" [disabled]="duplicateSaving() || !duplicateValid()">
+              {{ duplicateSaving() ? 'Cloning…' : 'Duplicate' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }

@@ -1,0 +1,6 @@
+@if (status.current(); as p) {
+      <div class="pill pill--{{ p.kind }}" role="status" aria-live="polite" (click)="status.dismiss()">
+        <span class="dot"></span>
+        <span class="msg">{{ p.message }}</span>
+      </div>
+    }

@@ -1,0 +1,14 @@
+.subtabs {
+      display: inline-flex; gap: .15rem;
+      padding: .2rem;
+      background: var(--ghost-bg, #f1f5f9);
+      border-radius: .5rem;
+      margin-bottom: 1rem;
+    }
+    a {
+      text-decoration: none; color: var(--text-muted);
+      padding: .35rem .85rem; border-radius: .375rem;
+      font-size: .85rem; font-weight: 500;
+    }
+    a:hover { color: var(--text); }
+    a.active { background: var(--card-bg); color: var(--text); box-shadow: 0 1px 2px rgba(15,23,42,.06); }

@@ -1,0 +1,19 @@
+<article class="card">
+      <header><h3>Funnel</h3></header>
+      <div class="steps">
+        @for (s of steps(); track s.label) {
+          <div class="step" [style.--w]="widthFor(s.value)">
+            <div class="row-top">
+              <span class="label">{{ s.label }}</span>
+              <span class="meta">
+                <strong>{{ s.value | number: "1.0-0" }}</strong>
+                @if (s.conversion !== null) {
+                  <span class="conv">{{ s.conversion | percent: "1.1-1" }}</span>
+                }
+              </span>
+            </div>
+            <div class="bar"></div>
+          </div>
+        }
+      </div>
+    </article>

@@ -1,4 +1,4 @@
-import "dotenv/config";
+import "./lib/loadEnv"; // must stay first: later imports read process.env at load time
 import { app } from "./app";
 import { startSyncJobs } from "./jobs/sync.job";
 import { logger } from "./lib/logger";

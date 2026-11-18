@@ -1,0 +1,36 @@
+<div class="hist">
+      <header class="hist-head">
+        <strong>Sync history</strong>
+        @if (loading()) { <span class="muted-sm">Loading…</span> }
+        @if (loadError()) { <span class="err">Failed to load history</span> }
+      </header>
+
+      @if (runs().length === 0 && !loading()) {
+        <p class="muted-sm">No sync runs yet for this connection.</p>
+      } @else {
+        <ul class="runs">
+          @for (r of runs(); track r.id) {
+            <li class="run" [class.run--ok]="r.ok === true" [class.run--fail]="r.ok === false" [class.run--pending]="r.ok === null">
+              <span class="status-dot"></span>
+              <div class="meta">
+                <div class="line-1">
+                  <span class="when">{{ format(r.startedAt) }}</span>
+                  @if (r.finishedAt) {
+                    <span class="muted-sm">· {{ duration(r) }}</span>
+                  }
+                  @if (r.campaignCount !== null) {
+                    <span class="muted-sm">· {{ r.campaignCount }} campaigns</span>
+                  }
+                  @if (r.insightCount !== null && r.insightCount > 0) {
+                    <span class="muted-sm">· {{ r.insightCount }} day rows</span>
+                  }
+                </div>
+                @if (r.error) {
+                  <div class="err-msg" [title]="r.error">⚠ {{ r.error }}</div>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </div>

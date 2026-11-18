@@ -47,17 +47,17 @@ describe("sync.job — post-logout ephemeral safety", () => {
   it("runAllConnections filters by active status AND user activity window", async () => {
     mocks.findMany.mockResolvedValueOnce([]);
     await runAllConnections();
-    const call = mocks.findMany.mock.calls[0][0];
-    expect(call.where.status).toBe("active");
-    expect(call.where.user.lastActiveAt.gte).toBeInstanceOf(Date);
+    const call = mocks.findMany.mock.calls[0]?.[0];
+    expect(call?.where.status).toBe("active");
+    expect(call?.where.user.lastActiveAt.gte).toBeInstanceOf(Date);
   });
 
   it("runAllConnections({ force: true }) bypasses the activity gate", async () => {
     mocks.findMany.mockResolvedValueOnce([]);
     await runAllConnections({ force: true });
-    const call = mocks.findMany.mock.calls[0][0];
-    expect(call.where.status).toBe("active");
-    expect(call.where.user).toBeUndefined();
+    const call = mocks.findMany.mock.calls[0]?.[0];
+    expect(call?.where.status).toBe("active");
+    expect(call?.where.user).toBeUndefined();
   });
 
   it("syncUserConnections returns [] for a logged-out user (no rows survive the wipe)", async () => {
@@ -93,6 +93,6 @@ describe("sync.job — post-logout ephemeral safety", () => {
     mocks.syncFacebook.mockResolvedValueOnce({ campaigns: 3, days: 7 });
     const results = await runAllConnections();
     expect(results).toHaveLength(1);
-    expect(results[0].ok).toBe(true);
+    expect(results[0]?.ok).toBe(true);
   });
 });

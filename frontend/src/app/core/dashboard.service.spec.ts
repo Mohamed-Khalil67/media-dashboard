@@ -47,7 +47,7 @@ describe("DashboardService HTTP contract", () => {
     req.flush({ campaigns: [{ campaignId: "c1", name: "C1", spend: 50 }] });
     const out = await pending;
     expect(out).toHaveLength(1);
-    expect(out[0].campaignId).toBe("c1");
+    expect(out[0]?.campaignId).toBe("c1");
   });
 
   it("getShopifyOrdersList serializes optional filters", async () => {

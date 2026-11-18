@@ -27,7 +27,8 @@ describe("encryption util", () => {
     const cipher = encrypt("hello");
     const decoded = Buffer.from(cipher, "base64");
     // Flip a byte in the encrypted-text region (after IV+tag = 28 bytes).
-    decoded[decoded.length - 1] ^= 0x01;
+    const last = decoded.length - 1;
+    decoded.writeUInt8((decoded.readUInt8(last) ^ 0x01), last);
     const tampered = decoded.toString("base64");
     expect(() => decrypt(tampered)).toThrow();
   });

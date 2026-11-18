@@ -272,8 +272,8 @@ export async function getCampaignAggregates(userId: string, range: string, since
 }
 
 function isAnomalous(series: number[]): boolean {
-  if (series.length < 4) return false;
-  const today = series[series.length - 1];
+  const today = series.at(-1);
+  if (series.length < 4 || today === undefined) return false;
   const baseline = series.slice(0, -1);
   const mean = baseline.reduce((s, v) => s + v, 0) / baseline.length;
   if (mean === 0) return false;

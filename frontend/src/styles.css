@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+* { box-sizing: border-box; }
+
+:root {
+  --bg:          #f5f4f0;
+  --text:        #0d1117;
+  --text-muted:  #4b5563;
+  --muted:       #9ca3af;
+  --card-bg:     #ffffff;
+  --card-bd:     #e5e7eb;
+  --th-bg:       #f9f9f7;
+  --ghost-bg:    #f3f3f0;
+  --ghost-hover: #e8e8e3;
+  --accent:        #009e6d;
+  --accent-on:     #ffffff;
+  --accent-soft:   rgba(0, 158, 109, 0.10);
+  --input-bd:      #d1d5db;
+  --chart-grid:    #e5e7eb;
+  --chart-axis:    #6b7280;
+  --shadow:        0 1px 3px rgba(13, 17, 23, .07);
+
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", "Fira Mono", ui-monospace, monospace;
+
+  --success:        #059669;
+  --success-soft:   #d1fae5;
+  --success-strong: #065f46;
+  --warning:        #d97706;
+  --warning-soft:   #fef3c7;
+  --warning-strong: #92400e;
+  --danger:         #dc2626;
+  --danger-soft:    #fee2e2;
+  --danger-strong:  #b91c1c;
+  --info:           #2563eb;
+  --info-soft:      #dbeafe;
+  --info-strong:    #1e3a8a;
+}
+
+html.dark {
+  --bg:          #0d1117;
+  --text:        #e8e6e0;
+  --text-muted:  #c9c7be;
+  --muted:       #8b8b85;
+  --card-bg:     #161d2b;
+  --card-bd:     #2a3344;
+  --th-bg:       #0f1623;
+  --ghost-bg:    #1e2a3a;
+  --ghost-hover: #2a3a50;
+  --accent:        #00e5a0;
+  --accent-on:     #0d1117;
+  --accent-soft:   rgba(0, 229, 160, 0.13);
+  --input-bd:      #374151;
+  --chart-grid:    #2a3344;
+  --chart-axis:    #9ca3af;
+  --shadow:        0 1px 3px rgba(0, 0, 0, .35);
+
+  --success:        #34d399;
+  --success-soft:   rgba(5, 150, 105, .18);
+  --success-strong: #34d399;
+  --warning:        #fbbf24;
+  --warning-soft:   rgba(217, 119, 6, .18);
+  --warning-strong: #fbbf24;
+  --danger:         #f87171;
+  --danger-soft:    rgba(220, 38, 38, .18);
+  --danger-strong:  #f87171;
+  --info:           #60a5fa;
+  --info-soft:      rgba(37, 99, 235, .18);
+  --info-strong:    #60a5fa;
+}
+
+html, body {
+  margin: 0; padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color .2s, color .2s;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+}

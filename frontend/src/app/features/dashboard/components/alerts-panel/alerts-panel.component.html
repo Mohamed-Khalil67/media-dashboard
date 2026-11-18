@@ -1,0 +1,22 @@
+<article class="card">
+      <header>
+        <h3>Alerts @if (alerts().length > 0) { <span class="count">{{ alerts().length }}</span> }</h3>
+        <a routerLink="/alerts" class="muted-link">Manage rules →</a>
+      </header>
+      @if (alerts().length === 0) {
+        <div class="empty">
+          <span class="empty-ico">✓</span>
+          <p class="muted">No alerts. Everything looks healthy.</p>
+        </div>
+      } @else {
+        <ul class="alerts-list">
+          @for (a of alerts(); track a.ruleId + a.campaignId) {
+            <li class="alert alert--{{ a.severity }}">
+              <strong>{{ a.campaignName }}</strong>
+              <span>{{ a.message }}</span>
+              <small class="muted">{{ a.platform }}</small>
+            </li>
+          }
+        </ul>
+      }
+    </article>

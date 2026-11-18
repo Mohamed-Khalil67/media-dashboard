@@ -1,0 +1,146 @@
+<app-dashboard-tabs />
+    <app-shopify-subtabs />
+
+    <header class="page-head">
+      <div>
+        <h1>Shopify Orders</h1>
+        <p class="muted">Live order data synced from your stores.</p>
+      </div>
+      <div class="actions">
+        <app-refresh-bar [lastUpdated]="lastUpdated()" [refreshing]="refreshing()" (refresh)="reload()" />
+
+        @if (shopifyConns().length > 0) {
+          <app-dropdown #shopDD>
+            <span trigger>
+              <span class="ico" aria-hidden="true">🛒</span>
+              <span class="lbl">{{ shopLabel() }}</span>
+            </span>
+            <div menu class="acct-menu" role="menu">
+              <button type="button" class="acct-item" [class.active]="selectedConn() === null"
+                (click)="selectConn(null); shopDD.close()">
+                <span>All stores</span>
+                <span class="check">{{ selectedConn() === null ? '✓' : '' }}</span>
+              </button>
+              <div class="divider"></div>
+              @for (c of shopifyConns(); track c.id) {
+                <button type="button" class="acct-item" [class.active]="selectedConn() === c.id"
+                  (click)="selectConn(c.id); shopDD.close()">
+                  <span>{{ c.accountName ?? c.accountId }}</span>
+                  <span class="check">{{ selectedConn() === c.id ? '✓' : '' }}</span>
+                </button>
+              }
+            </div>
+          </app-dropdown>
+        }
+      </div>
+    </header>
+
+    @if (shopifyConns().length > 0 && summary(); as s) {
+      <section class="kpi-strip">
+        <app-kpi-card label="Orders (24h)"      [value]="s.orders" />
+        <app-kpi-card label="Revenue (24h)"     [value]="s.revenue" prefix="E£" />
+        <app-kpi-card label="Avg items / order" [value]="s.avgItemsPerOrder" format="1.1-1" />
+      </section>
+    }
+
+    <div class="filter-bar">
+      <input class="search" type="search" placeholder="Search by customer email or order #" [formControl]="searchCtrl" aria-label="Search orders" />
+      <select class="status-select" [value]="statusFilter()" (change)="setStatus(asValue($event))" aria-label="Filter by financial status">
+        @for (s of statuses; track s.value) {
+          <option [value]="s.value">{{ s.label }}</option>
+        }
+      </select>
+    </div>
+
+    @if (loading() && orders().length === 0) {
+      <div class="empty"><p>Loading orders…</p></div>
+    } @else if (shopifyConns().length === 0) {
+      <div class="empty">
+        <h2>No Shopify stores connected</h2>
+        <p>Connect a Shopify store from <a class="primary-link" routerLink="/connections">Connections</a> to see your orders here.</p>
+      </div>
+    } @else if (orders().length === 0) {
+      <div class="empty">
+        <h2>No orders match these filters</h2>
+        <p>Try a different status, store, or clear the search.</p>
+      </div>
+    } @else {
+      <div class="card table-card">
+        <table class="orders" aria-label="Orders">
+          <thead>
+            <tr>
+              <th scope="col">Date</th>
+              <th scope="col">Order #</th>
+              <th scope="col">Customer</th>
+              <th scope="col" class="num">Items</th>
+              <th scope="col" class="num">Total</th>
+              <th scope="col">Financial</th>
+              <th scope="col">Fulfillment</th>
+              <th scope="col"><span class="sr-only">Open</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (o of orders(); track o.id) {
+              <tr (click)="openDetail(o)" tabindex="0" (keydown.enter)="openDetail(o)">
+                <td class="date">{{ o.createdAt | date: "mediumDate" }}</td>
+                <td class="order-num">{{ o.orderNumber ?? o.externalId }}</td>
+                <td class="customer">{{ o.customerEmail ?? '—' }}</td>
+                <td class="num">{{ o.lineItemsCount | number: "1.0-0" }}</td>
+                <td class="num"><strong>{{ o.totalPrice | currency: (o.currency || 'EGP'):'symbol':'1.0-2' }}</strong></td>
+                <td><span class="pill pill--{{ financialClass(o.financialStatus) }}">{{ o.financialStatus ?? '—' }}</span></td>
+                <td><span class="muted">{{ o.fulfillmentStatus ?? '—' }}</span></td>
+                <td class="open" aria-hidden="true">›</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+
+        @if (nextCursor()) {
+          <div class="load-more-row">
+            <button type="button" class="btn-ghost" [disabled]="loadingMore()" (click)="loadMore()">
+              {{ loadingMore() ? "Loading…" : "Load more orders" }}
+            </button>
+          </div>
+        }
+      </div>
+    }
+
+    @if (detailTarget(); as target) {
+      <div class="drawer-backdrop" (click)="closeDetail()">
+        <aside class="drawer" role="dialog" aria-modal="true" [attr.aria-labelledby]="'drawer-title'" (click)="$event.stopPropagation()">
+          <header>
+            <h2 id="drawer-title">{{ target.orderNumber ?? '#' + target.externalId }}</h2>
+            <button type="button" class="btn-close" (click)="closeDetail()" aria-label="Close">×</button>
+          </header>
+          <div class="drawer-meta">
+            <div><span class="muted">Date</span><strong>{{ target.createdAt | date: "medium" }}</strong></div>
+            <div><span class="muted">Total</span><strong>{{ target.totalPrice | currency: (target.currency || 'EGP'):'symbol':'1.0-2' }}</strong></div>
+            <div><span class="muted">Customer</span><strong>{{ target.customerEmail ?? '—' }}</strong></div>
+            <div><span class="muted">Items</span><strong>{{ target.lineItemsCount }}</strong></div>
+          </div>
+
+          @if (detailLoading()) {
+            <p class="muted">Loading details…</p>
+          } @else if (detailRaw(); as raw) {
+            @if (rawLineItems(raw); as items) {
+              <h3>Line items</h3>
+              <ul class="line-items">
+                @for (item of items; track $index) {
+                  <li>
+                    <span class="li-title">{{ item.title ?? item.sku ?? 'Item' }}</span>
+                    <span class="li-meta">× {{ item.quantity ?? 1 }}</span>
+                    <span class="li-price">{{ +(item.price ?? '0') | currency: (target.currency || 'EGP'):'symbol':'1.0-2' }}</span>
+                  </li>
+                }
+              </ul>
+            }
+            @if (rawNote(raw); as note) {
+              <h3>Customer note</h3>
+              <p class="note">{{ note }}</p>
+            }
+          } @else if (detailError()) {
+            <div class="banner banner--error">{{ detailError() }}</div>
+          }
+        </aside>
+      </div>
+    }

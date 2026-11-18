@@ -1,0 +1,52 @@
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .page-head h1 { margin: 0 0 .25rem; color: var(--text); }
+    .muted { color: var(--text-muted); margin: 0; }
+    .actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .ico { font-size: .95rem; }
+    .lbl { font-weight: 500; color: var(--text); }
+    .sync { background: #16a34a; color: #fff; border: 0; padding: .5rem 1rem; border-radius: .5rem; cursor: pointer; font-weight: 500; font-size: .85rem; }
+    .sync:hover:not(:disabled) { background: #15803d; }
+    .sync:disabled { opacity: .55; cursor: not-allowed; }
+
+    .acct-menu { padding: .25rem; min-width: 18rem; }
+    .acct-item { width: 100%; display: flex; justify-content: space-between; align-items: center; background: transparent; border: 0; padding: .45rem .55rem; border-radius: .375rem; cursor: pointer; color: var(--text); font-size: .85rem; text-align: left; }
+    .acct-item:hover { background: var(--ghost-bg); }
+    .acct-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+    .check { color: #16a34a; font-weight: 600; }
+    .divider { height: 1px; background: var(--card-bd); margin: .25rem .25rem; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .85rem; margin-bottom: .85rem; }
+    @media (max-width: 900px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }
+    .insights-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: .85rem; margin-bottom: .85rem; }
+    @media (max-width: 900px) { .insights-row { grid-template-columns: 1fr; } }
+    .insight-card { display: flex; flex-direction: column; gap: .15rem; padding: .85rem 1.1rem; margin-bottom: 0; }
+    .stat-label { font-size: .72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; font-weight: 500; }
+    .stat-value { font-size: 1.35rem; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; line-height: 1.15; }
+    .stat-sub { font-size: .72rem; }
+    .card { background: var(--card-bg); border: 1px solid var(--card-bd); border-radius: .75rem; padding: 1rem 1.25rem; margin-bottom: .85rem; }
+    .card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: .5rem; }
+    .card-head h3 { margin: 0; font-size: 1rem; color: var(--text); }
+    .empty { background: var(--card-bg); border: 1px dashed var(--input-bd); border-radius: .75rem; padding: 3rem 2rem; text-align: center; color: var(--text-muted); }
+    .empty h2 { margin-top: 0; color: var(--text); }
+    .empty-small { text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: .9rem; }
+    .primary-link { color: var(--accent); font-weight: 500; text-decoration: none; }
+    .primary-link:hover { text-decoration: underline; }
+    .skeleton-card { height: 7.5rem; background: var(--card-bg); border-radius: .75rem; border: 1px solid var(--card-bd); background-image: linear-gradient(90deg, var(--card-bg) 0%, var(--ghost-bg) 50%, var(--card-bg) 100%); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+    @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: .85rem; margin-bottom: .85rem; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+    .list-card { padding: 1.1rem 1.25rem; }
+    .rank-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: .4rem; }
+    .rank-list li {
+      display: grid;
+      grid-template-columns: 1.4rem 1fr auto auto;
+      gap: .65rem; align-items: baseline;
+      padding: .5rem .15rem;
+      border-bottom: 1px solid var(--card-bd);
+    }
+    .rank-list li:last-child { border-bottom: 0; }
+    .rank { color: var(--text-muted); font-size: .8rem; font-variant-numeric: tabular-nums; text-align: right; }
+    .rank-title { color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rank-meta { color: var(--text-muted); font-size: .78rem; }
+    .rank-num { font-variant-numeric: tabular-nums; color: var(--text); }

@@ -62,7 +62,7 @@ describe("POST /api/auth/logout — ephemeral wipe", () => {
     expect(prismaMock.alertRule.deleteMany).toHaveBeenCalledWith({ where: { userId: "user-A" } });
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
     // Both deletes go through the same transaction array — atomic wipe.
-    const txArg = prismaMock.$transaction.mock.calls[0][0];
+    const txArg = prismaMock.$transaction.mock.calls[0]?.[0];
     expect(Array.isArray(txArg)).toBe(true);
     expect(txArg).toHaveLength(2);
   });

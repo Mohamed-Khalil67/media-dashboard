@@ -36,8 +36,8 @@ describe("retention sweeper", () => {
     expect(result.insightsDeleted).toBe(50);
     // 2 calls for SyncRun batches + 1 for Insight.
     expect(mocks.executeRawUnsafe).toHaveBeenCalledTimes(3);
-    expect(mocks.executeRawUnsafe.mock.calls[0][0]).toContain('DELETE FROM "SyncRun"');
-    expect(mocks.executeRawUnsafe.mock.calls[2][0]).toContain('DELETE FROM "Insight"');
+    expect(mocks.executeRawUnsafe.mock.calls[0]?.[0]).toContain('DELETE FROM "SyncRun"');
+    expect(mocks.executeRawUnsafe.mock.calls[2]?.[0]).toContain('DELETE FROM "Insight"');
   });
 
   it("stops batching once a batch returns fewer rows than the limit", async () => {
@@ -59,8 +59,8 @@ describe("retention sweeper", () => {
     await runRetentionSweep();
     const after = Date.now();
 
-    const syncCutoff = mocks.executeRawUnsafe.mock.calls[0][1] as Date;
-    const insightCutoff = mocks.executeRawUnsafe.mock.calls[1][1] as Date;
+    const syncCutoff = mocks.executeRawUnsafe.mock.calls[0]?.[1] as Date;
+    const insightCutoff = mocks.executeRawUnsafe.mock.calls[1]?.[1] as Date;
     const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 

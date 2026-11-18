@@ -1,0 +1,155 @@
+<header class="page-head">
+      <h1>Connections</h1>
+      <p class="muted">Bring your own platform credentials. We'll sync your data every couple of minutes.</p>
+    </header>
+
+    @if (loadError(); as msg) {
+      <div class="load-pill" role="alert">
+        <span class="dot"></span><span>{{ msg }}</span>
+        <button class="pill-retry" (click)="reload()">Retry</button>
+      </div>
+    }
+
+    <section class="connect-grid">
+      @for (p of platforms; track p.key) {
+        <article class="card" [class.connected]="countFor(p.key) > 0" [style.--brand]="p.brand">
+          <div class="card-top">
+            <div class="brand">
+              <span class="ico">{{ p.icon }}</span>
+              <h2>{{ p.label }}</h2>
+            </div>
+            @if (countFor(p.key) > 0) {
+              <div class="status"><span class="pulse"></span><span>{{ countFor(p.key) }} connected</span></div>
+            } @else {
+              <div class="status status--idle"><span>Not connected</span></div>
+            }
+          </div>
+
+          <p class="blurb">{{ p.blurb }}</p>
+
+          <div class="card-actions">
+            <button class="primary" (click)="openModal(p.key)">
+              {{ countFor(p.key) > 0 ? '+ Add another account' : 'Connect ' + p.label }}
+            </button>
+          </div>
+        </article>
+      }
+    </section>
+
+    @if (activeConnections().length > 0) {
+      <section class="connections-list">
+        <h2>Your accounts</h2>
+        <div class="conn-rows">
+          @for (c of activeConnections(); track c.id) {
+            <div class="conn-row" [class.row-failed]="c.lastSyncOk === false">
+              <div class="conn-left">
+                <div class="avatar" [style.--brand]="brandFor(c.platform)">{{ initials(c) }}</div>
+                <div>
+                  <div class="acct-name">{{ c.accountName ?? c.accountId }}</div>
+                  <div class="acct-sub">
+                    <span class="badge badge--{{ c.platform }}">{{ c.platform }}</span>
+                    <span>·</span>
+                    <span class="muted-sm">{{ formatSync(c) }}</span>
+                    @if (c.syncSince) {
+                      <span>·</span>
+                      <span class="muted-sm">since {{ shortDate(c.syncSince) }}</span>
+                    }
+                  </div>
+                  @if (c.lastSyncOk === false && c.lastSyncError) {
+                    <div class="sync-err" [title]="c.lastSyncError">⚠ {{ c.lastSyncError }}</div>
+                  }
+                </div>
+              </div>
+              <div class="conn-right">
+                <span class="status-tag status--{{ c.status }}"><span class="dot-sm"></span> {{ c.status }}</span>
+                <button class="ghost" (click)="toggleHistory(c.id)">
+                  {{ expandedId() === c.id ? 'Hide history' : 'Sync history' }}
+                </button>
+                <button class="edit" (click)="openEditModal(c)" title="Update App ID / Secret or date range">Edit credentials</button>
+                <button class="danger" (click)="disconnect(c)">Disconnect</button>
+              </div>
+            </div>
+            @if (expandedId() === c.id) { <app-sync-history [connectionId]="c.id" /> }
+          }
+        </div>
+      </section>
+    }
+
+    @if (modalPlatform(); as mp) {
+      <div class="modal-backdrop" (click)="closeModal()">
+        <div class="modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+          <header class="modal-head">
+            <h2>{{ editingConnection() ? 'Edit ' + platformLabel(mp) + ' credentials' : 'Connect ' + platformLabel(mp) }}</h2>
+            <button class="x" (click)="closeModal()" aria-label="Close">×</button>
+          </header>
+
+          <p class="modal-lede">{{ modalLede() }}</p>
+
+          <a class="guide-link" href="/guide" target="_blank" rel="noopener">
+            📖 Setup Guide — step-by-step instructions for creating the app ↗
+          </a>
+
+          <form [formGroup]="form" (ngSubmit)="submitModal()">
+            @if (mp === 'shopify') {
+              <div class="field">
+                <label for="shop">Shop domain</label>
+                <input id="shop" type="text" formControlName="shop" placeholder="my-store.myshopify.com" autocomplete="off" />
+              </div>
+            }
+
+            <div class="field">
+              <label for="appId">{{ mp === 'shopify' ? 'API key' : 'App ID' }}</label>
+              <input id="appId" type="text" formControlName="appId" autocomplete="off" />
+            </div>
+
+            <div class="field">
+              <label for="appSecret">{{ mp === 'shopify' ? 'API secret' : 'App Secret' }}</label>
+              <input id="appSecret" type="password" formControlName="appSecret" autocomplete="new-password" />
+              <small class="hint">Stored encrypted at rest. Never shared.</small>
+            </div>
+
+            <details class="help">
+              <summary>How do I get these?</summary>
+              @if (mp === 'facebook') {
+                <ol>
+                  <li>Go to <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener">developers.facebook.com/apps</a> and create (or open) an app.</li>
+                  <li>In <em>App settings → Basic</em>, copy the App ID and App Secret.</li>
+                  <li>Under <em>Facebook Login → Settings</em>, add the Redirect URL shown below to "Valid OAuth Redirect URIs".</li>
+                </ol>
+              } @else {
+                <ol>
+                  <li>In your Shopify partner dashboard, create a custom app for your store.</li>
+                  <li>Copy the API key and API secret.</li>
+                  <li>Under App setup, add the Redirect URL below to "Allowed redirection URLs".</li>
+                </ol>
+              }
+            </details>
+
+            <div class="field">
+              <label for="redirect">Redirect URL</label>
+              <input id="redirect" type="text" formControlName="redirectUri" readonly />
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="since">Sync data from</label>
+                <input id="since" type="date" formControlName="since" />
+              </div>
+              <div class="field">
+                <label for="until">to</label>
+                <input id="until" type="date" formControlName="until" />
+              </div>
+            </div>
+
+            @if (modalError(); as e) { <div class="alert alert--error">{{ e }}</div> }
+
+            <div class="modal-actions">
+              <button type="button" class="ghost" (click)="closeModal()" [disabled]="submitting()">Cancel</button>
+              <button type="submit" class="primary" [disabled]="form.invalid || submitting()">
+                {{ submitting() ? "Starting…" : editingConnection() ? "Update & re-authorize" : "Continue to " + platformLabel(mp) }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    }
