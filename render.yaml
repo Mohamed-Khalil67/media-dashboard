@@ -1,0 +1,27 @@
+# Render Blueprint — free web service built from the root Dockerfile.
+# One container serves the API (/api/*) and the Angular SPA (everything else).
+# Postgres lives on Neon (free); see docs/deploy-render-neon.md.
+services:
+  - type: web
+    name: media-dashboard
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY_HOPS
+        value: "1"
+      - key: JWT_SECRET
+        generateValue: true
+      # Secrets you paste in the Render dashboard on first deploy:
+      - key: DATABASE_URL # Neon *direct* (non-pooled) connection string, ?sslmode=require
+        sync: false
+      - key: ENCRYPTION_KEY # 64 hex chars: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON # service-account key minified to one line
+        sync: false
+      - key: FRONTEND_URL # https://<service>.onrender.com (no trailing slash)
+        sync: false

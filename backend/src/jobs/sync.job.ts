@@ -138,4 +138,10 @@ export function startSyncJobs(): void {
     }
   });
   logger.info({ schedule: RETENTION_SCHEDULE }, "retention cron scheduled");
+
+  // On hosts that sleep when idle (Render free) the daily cron may never fire.
+  // The sweep is idempotent and batched, so also run it once per boot.
+  runRetentionSweep().catch((err: unknown) => {
+    logger.error({ err }, "startup retention sweep failed");
+  });
 }

@@ -14,6 +14,13 @@ import { logger } from "./lib/logger";
 
 export const app = express();
 
+// Behind a hosting proxy (Render, Railway…) the client IP is in X-Forwarded-For.
+// Trust exactly one hop so express-rate-limit keys on the real client IP
+// instead of treating every visitor as the proxy.
+if (process.env.TRUST_PROXY_HOPS !== undefined) {
+  app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS));
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {

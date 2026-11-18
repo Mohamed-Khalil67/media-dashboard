@@ -3,7 +3,7 @@ import { RouterLink } from "@angular/router";
 import { CurrencyPipe, DecimalPipe } from "@angular/common";
 import { NgApexchartsModule, ApexOptions } from "ng-apexcharts";
 import { AuthService } from "../../../core/auth.service";
-import { ConnectionsService } from "../../../core/connections.service";
+import { ConnectionsService, syncRefusedMessage } from "../../../core/connections.service";
 import { DashboardService } from "../../../core/dashboard.service";
 import { StatusBarService } from "../../../core/status-bar.service";
 import { ThemeService } from "../../../core/theme.service";
@@ -197,8 +197,10 @@ export class ShopifyDashboardComponent implements OnInit, OnDestroy {
         this.status.error(`Partial sync: ${ok.length} ok, ${fail.length} failed`);
       }
       await this.reload();
-    } catch {
-      this.status.error("Sync request failed");
+    } catch (err) {
+      const refused = syncRefusedMessage(err);
+      if (refused) this.status.info(refused);
+      else this.status.error("Sync request failed");
     } finally {
       this.syncing.set(false);
     }

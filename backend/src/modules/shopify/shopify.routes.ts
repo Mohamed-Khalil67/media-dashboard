@@ -3,6 +3,7 @@ import { requireAuth, AuthedRequest } from "../../middleware/auth";
 import { prisma } from "../../db/client";
 import { encrypt, decrypt } from "../../utils/encryption";
 import { signState, verifyState } from "../../utils/oauthState";
+import { parseSyncWindow } from "../../utils/syncWindow";
 import {
   exchangeCodeForToken,
   isValidShopDomain,
@@ -38,6 +39,11 @@ router.post("/connect-start", requireAuth, async (req: Request, res: Response) =
   if (typeof apiSecret !== "string" || apiSecret.trim().length < 16) {
     return res.status(400).json({ error: "api_secret_required" });
   }
+  const window = parseSyncWindow(since, until);
+  if (!window.ok) {
+    return res.status(400).json({ error: "invalid_sync_window", message: window.error });
+  }
+  const { since: syncSince, until: syncUntil } = window.value;
   const effectiveRedirect = (typeof redirectUri === "string" && redirectUri.length > 0)
     ? redirectUri
     : `${frontendUrl().replace(/\/$/, "")}/api/shopify/callback`;
@@ -50,8 +56,8 @@ router.post("/connect-start", requireAuth, async (req: Request, res: Response) =
       appId: apiKey,
       appSecret: encrypt(apiSecret),
       redirectUri: effectiveRedirect,
-      syncSince: since ? new Date(since) : null,
-      syncUntil: until ? new Date(until) : null,
+      syncSince,
+      syncUntil,
     },
     create: {
       userId,
@@ -63,8 +69,8 @@ router.post("/connect-start", requireAuth, async (req: Request, res: Response) =
       appId: apiKey,
       appSecret: encrypt(apiSecret),
       redirectUri: effectiveRedirect,
-      syncSince: since ? new Date(since) : null,
-      syncUntil: until ? new Date(until) : null,
+      syncSince,
+      syncUntil,
     },
   });
 

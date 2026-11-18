@@ -3,6 +3,10 @@ WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci
 COPY frontend/ .
+# The frontend imports shared zod contracts via @contracts/* → ../backend/src/contracts.
+# Copy them in, and link node_modules so their `import "zod"` resolves to the frontend's copy.
+COPY backend/src/contracts /app/backend/src/contracts
+RUN ln -s /app/frontend/node_modules /app/backend/node_modules
 RUN npm run build
 
 FROM node:22 AS backend-build

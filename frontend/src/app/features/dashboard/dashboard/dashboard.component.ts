@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, computed, effect
 import { RouterLink } from "@angular/router";
 import { CurrencyPipe, DecimalPipe } from "@angular/common";
 import { AuthService } from "../../../core/auth.service";
-import { ConnectionsService } from "../../../core/connections.service";
+import { ConnectionsService, syncRefusedMessage } from "../../../core/connections.service";
 import { DashboardService, AdPlatform } from "../../../core/dashboard.service";
 import { AlertsService } from "../../../core/alerts.service";
 import { StatusBarService } from "../../../core/status-bar.service";
@@ -335,8 +335,10 @@ export class DashboardComponent implements OnInit, OnDestroy {
       }
 
       await Promise.all([this.loadConnections(), this.reload()]);
-    } catch {
-      this.status.error("Sync request failed — backend may be down");
+    } catch (err) {
+      const refused = syncRefusedMessage(err);
+      if (refused) this.status.info(refused);
+      else this.status.error("Sync request failed — backend may be down");
     } finally {
       this.syncing.set(false);
     }
